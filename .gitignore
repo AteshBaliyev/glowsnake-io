@@ -31,3 +31,10 @@ Thumbs.db
 # TypeScript build cache
 *.tsbuildinfo
 next-env.d.ts
+
+# Android build outputs
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+dist-android/

@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "next build",
+    "build:mobile": "next build && cap sync android",
     "start": "tsx server.ts --prod",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
     "lucide-react": "^0.475.0",
     "next": "^15.2.4",
     "react": "^19.0.0",
