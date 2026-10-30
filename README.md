@@ -43,7 +43,36 @@ Slither.io tərzində, lakin daha inkişaf etmiş, **35 unikal ilan növü və a
 
 ---
 
-## Quraşdırma və İşə Salma
+## Server və Canlı Multiplayer (RepoCloud VPS)
+
+Oyun birbaşa hazır canlı RepoCloud Ubuntu VPS serverinə qoşulmaq üçün konfiqurasiya olunmuşdur:
+- **Canlı Server Domeni:** `https://vps-2613da52.vps.rcld.dev`
+- **Server IP:** `5.9.213.161`
+- **Port:** `3000`
+
+### RepoCloud VPS Üzərində 1-Kliklə İşə Salma:
+
+1. **RepoCloud Panelindən:**
+   - DevOps AI Agent bölməsində **"Resume Chat"** düyməsinə basın.
+   - Söhbətə sadəcə bu əmri göndərin:
+     ```text
+     Deploy the app with docker compose or bash deploy.sh
+     ```
+2. **Və ya SSH vasitəsilə birbaşa terminalda:**
+   ```bash
+   ssh root@5.9.213.161
+   # Və bu əmri işə salın:
+   curl -sSL https://raw.githubusercontent.com/AteshBaliyev/glowsnake-io/main/deploy.sh | bash
+   ```
+
+3. **Docker ilə işə salmaq üçün:**
+   ```bash
+   docker compose up -d --build
+   ```
+
+---
+
+## Quraşdırma və İşə Salma (Lokal İnkişaf)
 
 ```bash
 # Asılılıqları yükləyin

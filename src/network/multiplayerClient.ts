@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { DEFAULT_PRODUCTION_SERVER_URL } from '@/engine/storage';
 import {
   MapId,
   RoomSummary,
@@ -44,15 +45,28 @@ export class MultiplayerClient {
 
     this.disconnect();
 
-    const targetUrl =
-      customServerUrl.trim() ||
-      process.env.NEXT_PUBLIC_SERVER_URL ||
-      undefined;
+    let targetUrl: string | undefined = customServerUrl.trim();
+    if (!targetUrl) {
+      targetUrl = process.env.NEXT_PUBLIC_SERVER_URL || DEFAULT_PRODUCTION_SERVER_URL;
+    }
+
+    // When running inside a browser on localhost / 127.0.0.1, prioritize local origin
+    // unless the user specified a custom external IP/domain explicitly
+    if (typeof window !== 'undefined') {
+      const isLocal =
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname === '0.0.0.0';
+      if (isLocal && (targetUrl === DEFAULT_PRODUCTION_SERVER_URL || !targetUrl)) {
+        targetUrl = window.location.origin;
+      }
+    }
+
     const socket = io(targetUrl, {
       path: '/api/socketio',
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
-      timeout: 6000,
+      timeout: 8000,
     });
 
     this.socket = socket;

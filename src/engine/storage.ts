@@ -2,13 +2,16 @@ import { MatchResultSummary, PlayerProfile, SnakeTypeSpec } from '@/types/game';
 
 const STORAGE_KEY = 'glowsnake_io_profile_v4';
 
+export const DEFAULT_PRODUCTION_SERVER_URL =
+  process.env.NEXT_PUBLIC_SERVER_URL || 'https://vps-2613da52.vps.rcld.dev';
+
 export const DEFAULT_PROFILE: PlayerProfile = {
   nickname: '',
   language: 'en', // Default language is English
   selectedSnakeId: 'swift-viper',
   selectedMapId: 'cyberpunk-city',
   preferredMode: 'offline',
-  customServerUrl: '',
+  customServerUrl: DEFAULT_PRODUCTION_SERVER_URL,
   firebaseDbUrl: '',
   controlMode: 'arrow',
   controlHand: 'right',
@@ -84,6 +87,10 @@ export function loadProfile(): PlayerProfile {
     return {
       ...DEFAULT_PROFILE,
       ...parsed,
+      customServerUrl:
+        parsed.customServerUrl && parsed.customServerUrl.trim() !== ''
+          ? parsed.customServerUrl
+          : DEFAULT_PRODUCTION_SERVER_URL,
       unlockedAchievements: Array.isArray(parsed.unlockedAchievements)
         ? parsed.unlockedAchievements
         : [],
