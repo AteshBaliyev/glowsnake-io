@@ -34,6 +34,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   onExitToMenu,
   onSwitchToOffline,
 }) => {
+  const profileRef = useRef<PlayerProfile>(profile);
+  profileRef.current = profile;
+
   const t = UI_TEXT[profile.language || 'en'];
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -186,7 +189,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
 
     const updateCanvasSize = () => {
-      const dpr = profile.bestGraphics
+      const dpr = profileRef.current.bestGraphics
         ? Math.min(2, window.devicePixelRatio || 1)
         : 1;
       canvas.width = window.innerWidth * dpr;
@@ -196,7 +199,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     window.addEventListener('resize', updateCanvasSize);
 
     const onMouseMove = (e: MouseEvent) => {
-      if (touchAngleRef.current !== null && profile.controlMode === 'joystick') return;
+      if (touchAngleRef.current !== null && profileRef.current.controlMode === 'joystick') return;
       const cx = window.innerWidth / 2;
       const cy = window.innerHeight / 2;
       const dx = e.clientX - cx;
@@ -208,12 +211,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const onMouseDown = (e: MouseEvent) => {
       soundEngine.unlock();
-      if (profile.musicEnabled) {
+      if (profileRef.current.musicEnabled) {
         soundEngine.startMusic();
       }
 
       // Double click / tap to boost
-      if (profile.doubleTapToBoost && e.button === 0) {
+      if (profileRef.current.doubleTapToBoost && e.button === 0) {
         const nowTap = performance.now();
         if (nowTap - lastTapTimeRef.current < 280) {
           doubleTapBoostRef.current = !doubleTapBoostRef.current;
@@ -232,10 +235,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const onTouchStart = (e: TouchEvent) => {
       soundEngine.unlock();
-      if (profile.musicEnabled) {
+      if (profileRef.current.musicEnabled) {
         soundEngine.startMusic();
       }
-      if (profile.doubleTapToBoost && e.touches.length === 1) {
+      if (profileRef.current.doubleTapToBoost && e.touches.length === 1) {
         const nowTap = performance.now();
         if (nowTap - lastTapTimeRef.current < 280) {
           doubleTapBoostRef.current = !doubleTapBoostRef.current;
@@ -422,12 +425,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           activeSelfId,
           dtSec,
           {
-            showPlayerNames: profile.showPlayerNames,
-            fadeMyName: profile.fadeMyName,
-            bestGraphics: profile.bestGraphics,
-            wigglingFood: profile.wigglingFood,
-            mapOnTop: profile.mapOnTop,
-            lookAhead: profile.lookAhead,
+            showPlayerNames: profileRef.current.showPlayerNames,
+            fadeMyName: profileRef.current.fadeMyName,
+            bestGraphics: profileRef.current.bestGraphics,
+            wigglingFood: profileRef.current.wigglingFood,
+            mapOnTop: profileRef.current.mapOnTop,
+            lookAhead: profileRef.current.lookAhead,
           }
         );
       } else {
@@ -477,7 +480,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       mpClient?.disconnect();
       fbSync?.stop();
     };
-  }, [profile, onGameOver]);
+  }, [
+    profile.preferredMode,
+    profile.selectedMapId,
+    profile.selectedSnakeId,
+    profile.nickname,
+    profile.customServerUrl,
+    profile.firebaseDbUrl,
+    onGameOver,
+  ]);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#13161f]">

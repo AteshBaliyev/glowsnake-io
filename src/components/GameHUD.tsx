@@ -235,100 +235,80 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         </div>
       </div>
 
-      {/* Top-Right Clean Leaderboard + Your Live Rank & Total Players */}
-      <div className="absolute top-3.5 right-3.5 w-48 sm:w-56 rounded-xl bg-slate-900/85 border border-white/10 p-2.5">
-        <div className="flex items-center justify-between border-b border-white/10 pb-1.5 mb-1.5">
-          <span className="text-xs font-bold text-slate-200">
+      {/* Top-Right Compact Leaderboard + Live Rank */}
+      <div className="absolute top-3.5 right-3.5 w-36 sm:w-44 rounded-xl bg-slate-950/65 backdrop-blur-xs border border-white/10 p-1.5 sm:p-2 shadow-lg">
+        <div className="flex items-center justify-between border-b border-white/10 pb-1 mb-1">
+          <span className="text-[11px] sm:text-xs font-bold text-slate-200">
             {t.leaderboard}
           </span>
-          <span className="text-[11px] font-semibold text-slate-400 tabular-nums">
+          <span className="text-[9px] sm:text-[10px] font-semibold text-slate-400 tabular-nums">
             {totalPlayers} {t.players}
           </span>
         </div>
 
-        <div className="space-y-0.5">
-          {hud.leaderboard.map((entry, idx) => {
+        <div className="space-y-[1px]">
+          {hud.leaderboard.slice(0, 5).map((entry, idx) => {
             const isMe = me && entry.id === me.id;
             return (
               <div
                 key={entry.id}
-                className={`flex items-center justify-between rounded px-1.5 py-0.5 text-xs ${
+                className={`flex items-center justify-between rounded px-1 py-[1px] text-[10px] sm:text-[11px] ${
                   isMe
-                    ? 'bg-emerald-500/20 text-emerald-300 font-bold'
+                    ? 'bg-emerald-500/25 text-emerald-300 font-bold'
                     : 'text-slate-300'
                 }`}
               >
-                <span className="truncate pr-2">
+                <span className="truncate pr-1.5 max-w-[75px] sm:max-w-[95px]">
                   {idx + 1}. {entry.name}
                 </span>
-                <span className="font-mono tabular-nums">{entry.score}</span>
+                <span className="font-mono tabular-nums text-[10px] sm:text-[11px]">{entry.score}</span>
               </div>
             );
           })}
         </div>
 
-        {/* Always-Visible Live Rank Banner */}
-        <div className="mt-2 pt-1.5 border-t border-white/10 flex items-center justify-between text-xs">
-          <span className="inline-flex items-center gap-1 text-slate-300 font-medium">
-            <Crown className="h-3.5 w-3.5 text-amber-400" />
+        {/* Live Rank Strip */}
+        <div className="mt-1 pt-1 border-t border-white/10 flex items-center justify-between text-[10px] sm:text-[11px]">
+          <span className="inline-flex items-center gap-1 text-slate-400 font-medium">
+            <Crown className="h-3 w-3 text-amber-400" />
             {t.rank}
           </span>
           <strong className="font-extrabold text-emerald-400 tabular-nums">
-            #{myRank} / {totalPlayers}
+            #{myRank}/{totalPlayers}
           </strong>
         </div>
       </div>
 
-      {/* Bottom-Center Clean Score, Rank & Ability Bar */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-auto">
-        <div className="flex items-center gap-3.5 sm:gap-4 rounded-xl bg-slate-900/85 border border-white/10 px-4 py-2 text-xs text-slate-200">
+      {/* Bottom-Center Clean Stats Bar (Quick Dash removed to free mobile screen) */}
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto">
+        <div className="flex items-center gap-3 sm:gap-4 rounded-xl bg-slate-950/75 backdrop-blur-xs border border-white/10 px-3.5 py-1.5 text-xs text-slate-200 shadow-md">
           <div>
-            <span className="text-slate-400 mr-1.5">{t.score}:</span>
+            <span className="text-slate-400 mr-1">{t.score}:</span>
             <strong className="text-sm font-bold text-white tabular-nums">
               {score}
             </strong>
           </div>
 
           <div>
-            <span className="text-slate-400 mr-1.5">{t.rank}:</span>
+            <span className="text-slate-400 mr-1">{t.rank}:</span>
             <strong className="font-bold text-emerald-400 tabular-nums">
               #{myRank}/{totalPlayers}
             </strong>
           </div>
 
           <div className="hidden sm:block">
-            <span className="text-slate-400 mr-1.5">{t.length}:</span>
+            <span className="text-slate-400 mr-1">{t.length}:</span>
             <strong className="font-semibold text-white tabular-nums">
               {length}
             </strong>
           </div>
 
           <div className="hidden sm:block">
-            <span className="text-slate-400 mr-1.5">{t.kills}:</span>
+            <span className="text-slate-400 mr-1">{t.kills}:</span>
             <strong className="font-semibold text-white tabular-nums">
               {kills}
             </strong>
           </div>
-
-          <button
-            onClick={onTriggerAbility}
-            disabled={!cdReady}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-semibold transition cursor-pointer ${
-              cdReady
-                ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
-                : 'bg-slate-800 text-slate-400'
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>{snakeSpec.ability.name[lang]}</span>
-            <span className="opacity-80 tabular-nums">
-              {activeRemainingMs > 0
-                ? `(${(activeRemainingMs / 1000).toFixed(1)}s)`
-                : cdReady
-                ? t.ready
-                : `(${cdSec}s)`}
-            </span>
-          </button>
         </div>
       </div>
 

@@ -151,7 +151,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
   return (
     <div
-      className="relative min-h-screen w-full flex flex-col justify-between px-5 py-5 select-none text-slate-100"
+      className="relative min-h-screen w-full flex flex-col justify-between px-3.5 py-2 sm:px-6 sm:py-5 select-none text-slate-100 overflow-y-auto"
       style={{ backgroundColor: selectedMap.bgColor }}
     >
       {/* Subtle Clean Background Grid */}
@@ -164,19 +164,19 @@ export const StartMenu: React.FC<StartMenuProps> = ({
       />
 
       {/* TOP BAR: Achievements & Settings on Top-Right */}
-      <header className="relative z-10 flex items-center justify-end gap-2.5 w-full">
+      <header className="relative z-10 flex items-center justify-end gap-2 w-full pt-0.5">
         <button
           type="button"
           onClick={openAchievementsModal}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-3.5 py-2.5 text-sm font-medium text-slate-200 transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium text-slate-200 transition cursor-pointer"
         >
-          <Award className="h-4 w-4 text-amber-400" />
+          <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-400" />
           <span>{t.achievements}</span>
-          <span className="text-xs text-slate-400 tabular-nums">
+          <span className="text-[11px] sm:text-xs text-slate-400 tabular-nums">
             ({profile.unlockedAchievements.length}/{ACHIEVEMENTS.length})
           </span>
           {profile.unseenAchievements.length > 0 && (
-            <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-extrabold text-slate-950 leading-none">
+            <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-extrabold text-slate-950 leading-none">
               {t.newBadge}
             </span>
           )}
@@ -188,24 +188,24 @@ export const StartMenu: React.FC<StartMenuProps> = ({
             soundEngine.playClick();
             setActiveModal('settings');
           }}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-200 transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium text-slate-200 transition cursor-pointer"
         >
-          <Settings className="h-4 w-4 text-slate-300" />
+          <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-300" />
           <span>{t.settings}</span>
         </button>
       </header>
 
       {/* CENTER: Title, Nickname, Online/Offline, Play */}
-      <main className="relative z-10 my-auto mx-auto w-full max-w-sm flex flex-col items-center text-center py-6">
-        <div className="mb-1">
-          <SnakePreviewCanvas snake={selectedSnake} width={210} height={68} />
+      <main className="relative z-10 my-auto mx-auto w-full max-w-xs sm:max-w-sm flex flex-col items-center text-center py-1 sm:py-4">
+        <div className="mb-0.5">
+          <SnakePreviewCanvas snake={selectedSnake} width={180} height={52} />
         </div>
 
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white mb-6">
+        <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white mb-2 sm:mb-4">
           GlowSnake.io
         </h1>
 
-        <form onSubmit={handlePlay} className="w-full space-y-3.5">
+        <form onSubmit={handlePlay} className="w-full space-y-2 sm:space-y-3">
           {/* Nickname */}
           <div>
             <input
@@ -217,26 +217,26 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                 if (e.target.value.trim()) setNameError(false);
               }}
               placeholder={t.nicknamePlaceholder}
-              className={`w-full rounded-xl bg-slate-900/90 border px-4 py-3.5 text-center text-base font-medium text-white placeholder-slate-500 outline-none transition ${
+              className={`w-full rounded-lg sm:rounded-xl bg-slate-900/90 border px-3.5 py-2 sm:py-3 text-center text-sm sm:text-base font-medium text-white placeholder-slate-500 outline-none transition ${
                 nameError
                   ? 'border-red-500'
                   : 'border-white/15 focus:border-white/40'
               }`}
             />
             {nameError && (
-              <p className="mt-1.5 text-xs text-red-400">{t.enterNameWarning}</p>
+              <p className="mt-1 text-xs text-red-400">{t.enterNameWarning}</p>
             )}
           </div>
 
           {/* Offline / Online Switch */}
-          <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-900/90 border border-white/10 p-1">
+          <div className="grid grid-cols-2 gap-1 rounded-lg sm:rounded-xl bg-slate-900/90 border border-white/10 p-1">
             <button
               type="button"
               onClick={() => {
                 soundEngine.playClick();
                 onUpdateProfile({ preferredMode: 'offline' });
               }}
-              className={`rounded-lg py-2.5 text-sm font-semibold transition cursor-pointer ${
+              className={`rounded-md sm:rounded-lg py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition cursor-pointer ${
                 profile.preferredMode === 'offline'
                   ? 'bg-slate-700 text-white'
                   : 'text-slate-400 hover:text-slate-200'
@@ -250,7 +250,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                 soundEngine.playClick();
                 onUpdateProfile({ preferredMode: 'online' });
               }}
-              className={`rounded-lg py-2.5 text-sm font-semibold transition cursor-pointer ${
+              className={`rounded-md sm:rounded-lg py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition cursor-pointer ${
                 profile.preferredMode === 'online'
                   ? 'bg-slate-700 text-white'
                   : 'text-slate-400 hover:text-slate-200'
@@ -266,9 +266,9 @@ export const StartMenu: React.FC<StartMenuProps> = ({
           {/* Play Button */}
           <button
             type="submit"
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] px-6 py-4 text-base font-bold tracking-wide text-slate-950 transition cursor-pointer"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] px-4 py-2.5 sm:py-3.5 text-sm sm:text-base font-bold tracking-wide text-slate-950 transition cursor-pointer shadow-lg shadow-emerald-500/20"
           >
-            <Play className="h-5 w-5 fill-slate-950" />
+            <Play className="h-4 w-4 sm:h-5 sm:w-5 fill-slate-950" />
             <span>{t.play}</span>
           </button>
         </form>
