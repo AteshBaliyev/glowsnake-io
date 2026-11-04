@@ -170,13 +170,27 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         } flex flex-wrap items-center gap-1.5 pointer-events-auto`}
       >
         <div className="inline-flex items-center gap-2 rounded-xl bg-slate-900/85 border border-white/10 px-2.5 py-1.5 text-xs text-slate-200">
-          <span className="font-semibold">
-            {mode === 'online'
-              ? hud.serverInstanceIndex > 1
-                ? `${t.online} • ${t.serverRoom} #${hud.serverInstanceIndex}`
-                : t.online
-              : t.offline}
+          <span className="font-semibold flex items-center gap-1.5">
+            {mode === 'online' ? (
+              <>
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span>
+                  {t.online} • {t.onlineRegion}
+                </span>
+              </>
+            ) : (
+              <span>{t.offline}</span>
+            )}
           </span>
+
+          {mode === 'online' && hud.pingMs > 0 && (
+            <>
+              <span className="text-slate-600">•</span>
+              <span className="text-emerald-400 font-mono text-[11px] font-bold tabular-nums">
+                {hud.pingMs}ms
+              </span>
+            </>
+          )}
 
           <span className="text-slate-600">•</span>
 

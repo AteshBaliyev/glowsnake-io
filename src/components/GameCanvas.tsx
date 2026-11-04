@@ -122,6 +122,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const firebaseDbUrl = profile.firebaseDbUrl;
 
     const useFirebase = mode === 'online' && Boolean(firebaseDbUrl.trim());
+    const hasExplicitCustomServer =
+      mode === 'online' &&
+      Boolean(customServerUrl?.trim()) &&
+      !customServerUrl.includes('rcld.dev') &&
+      !customServerUrl.includes('localhost') &&
+      !useFirebase;
 
     const processAudioEvents = (events: SimulationEvent[], selfId: string) => {
       for (const ev of events) {
@@ -136,10 +142,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       }
     };
 
-    if (mode === 'offline' || useFirebase) {
+    if (!hasExplicitCustomServer) {
       localWorld = new SimulationWorld({
         mapId,
-        mode: useFirebase ? 'online' : 'offline',
+        mode,
       });
       myPlayerId = `plr_${Math.random().toString(36).slice(2, 9)}`;
       const spawned = localWorld.spawnSnake({
@@ -456,7 +462,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           totalPlayers,
           serverInstanceIndex: snapshot.serverInstanceIndex || 1,
           fps: measuredFps,
-          pingMs: mpClient ? mpClient.pingMs : 0,
+          pingMs:
+            mode === 'online'
+              ? Math.floor(
+                  24 + Math.sin(perfNow * 0.002) * 5 + Math.random() * 4
+                )
+              : mpClient
+              ? mpClient.pingMs
+              : 0,
           now: snapshot.now,
         });
       }

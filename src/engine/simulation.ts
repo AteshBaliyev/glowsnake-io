@@ -1,4 +1,7 @@
-import { PLAYER_LIKE_NAMES } from '@/data/achievements';
+import {
+  INTERNATIONAL_ONLINE_NAMES,
+  PLAYER_LIKE_NAMES,
+} from '@/data/achievements';
 import { ARENA_MAPS, getMapSpec } from '@/data/maps';
 import { getSnakeSpec, SNAKE_TYPES } from '@/data/snakes';
 import {
@@ -357,41 +360,69 @@ export class SimulationWorld {
       if (s.alive) usedNames.add(s.name);
     }
 
-    let chosenName =
-      PLAYER_LIKE_NAMES[Math.floor(Math.random() * PLAYER_LIKE_NAMES.length)];
+    const isOnline = this.mode === 'online';
+    const namePool = isOnline ? INTERNATIONAL_ONLINE_NAMES : PLAYER_LIKE_NAMES;
+
+    let chosenName = namePool[Math.floor(Math.random() * namePool.length)];
     if (usedNames.has(chosenName)) {
-      chosenName = `${chosenName}${Math.floor(1 + Math.random() * 99)}`;
+      chosenName = `${chosenName}_${Math.floor(1 + Math.random() * 99)}`;
     }
 
     // Skill & Strength distribution:
-    // 36% Weak, 40% Normal, 17% Strong, 7% Titan Boss!
+    // Online mode features competitive global players (higher strong & titan ratio)
     const r = Math.random();
     let tier: BotSkillTier = 'normal';
     let initScore = 0;
     let snakePool = SNAKE_TYPES.slice(0, 13);
 
-    if (r < 0.36) {
-      tier = 'weak';
-      initScore = initialSeed ? Math.floor(Math.random() * 45) : Math.floor(Math.random() * 20);
-      snakePool = SNAKE_TYPES.slice(0, 8);
-    } else if (r < 0.76) {
-      tier = 'normal';
-      initScore = initialSeed
-        ? Math.floor(40 + Math.random() * 170)
-        : Math.floor(15 + Math.random() * 80);
-      snakePool = SNAKE_TYPES.slice(3, 20);
-    } else if (r < 0.93) {
-      tier = 'strong';
-      initScore = initialSeed
-        ? Math.floor(200 + Math.random() * 520)
-        : Math.floor(80 + Math.random() * 240);
-      snakePool = SNAKE_TYPES.slice(12, 30);
+    if (isOnline) {
+      if (r < 0.12) {
+        tier = 'weak';
+        initScore = initialSeed ? Math.floor(Math.random() * 60) : Math.floor(Math.random() * 30);
+        snakePool = SNAKE_TYPES.slice(0, 10);
+      } else if (r < 0.45) {
+        tier = 'normal';
+        initScore = initialSeed
+          ? Math.floor(60 + Math.random() * 220)
+          : Math.floor(25 + Math.random() * 120);
+        snakePool = SNAKE_TYPES.slice(5, 22);
+      } else if (r < 0.82) {
+        tier = 'strong';
+        initScore = initialSeed
+          ? Math.floor(240 + Math.random() * 680)
+          : Math.floor(110 + Math.random() * 340);
+        snakePool = SNAKE_TYPES.slice(14, 32);
+      } else {
+        tier = 'titan';
+        initScore = initialSeed
+          ? Math.floor(850 + Math.random() * 2400)
+          : Math.floor(450 + Math.random() * 1100);
+        snakePool = SNAKE_TYPES.slice(22, 35);
+      }
     } else {
-      tier = 'titan';
-      initScore = initialSeed
-        ? Math.floor(750 + Math.random() * 1950)
-        : Math.floor(350 + Math.random() * 850);
-      snakePool = SNAKE_TYPES.slice(20, 35);
+      if (r < 0.36) {
+        tier = 'weak';
+        initScore = initialSeed ? Math.floor(Math.random() * 45) : Math.floor(Math.random() * 20);
+        snakePool = SNAKE_TYPES.slice(0, 8);
+      } else if (r < 0.76) {
+        tier = 'normal';
+        initScore = initialSeed
+          ? Math.floor(40 + Math.random() * 170)
+          : Math.floor(15 + Math.random() * 80);
+        snakePool = SNAKE_TYPES.slice(3, 20);
+      } else if (r < 0.93) {
+        tier = 'strong';
+        initScore = initialSeed
+          ? Math.floor(200 + Math.random() * 520)
+          : Math.floor(80 + Math.random() * 240);
+        snakePool = SNAKE_TYPES.slice(12, 30);
+      } else {
+        tier = 'titan';
+        initScore = initialSeed
+          ? Math.floor(750 + Math.random() * 1950)
+          : Math.floor(350 + Math.random() * 850);
+        snakePool = SNAKE_TYPES.slice(20, 35);
+      }
     }
 
     const pickedSnake = snakePool[Math.floor(Math.random() * snakePool.length)] || SNAKE_TYPES[0];
@@ -1460,6 +1491,7 @@ export class SimulationWorld {
     }
 
     const tier = bot.botTier || 'normal';
+    const isOnline = this.mode === 'online';
 
     // Human-like reaction latency (bots do not execute 60Hz machine reflexes)
     const nextTick = this.botNextDecisionAt.get(bot.id) || 0;
@@ -1467,20 +1499,28 @@ export class SimulationWorld {
       return;
     }
 
-    // Schedule next decision with tier-specific reaction latency
-    const reactionDelay =
-      tier === 'weak'
-        ? 240 + Math.random() * 120
+    // Schedule next decision with tier-specific reaction latency (sharper in Online mode)
+    const reactionDelay = isOnline
+      ? tier === 'weak'
+        ? 180 + Math.random() * 80
         : tier === 'normal'
-        ? 170 + Math.random() * 90
+        ? 120 + Math.random() * 60
         : tier === 'strong'
-        ? 110 + Math.random() * 60
-        : 85 + Math.random() * 45;
+        ? 75 + Math.random() * 45
+        : 60 + Math.random() * 35
+      : tier === 'weak'
+      ? 240 + Math.random() * 120
+      : tier === 'normal'
+      ? 170 + Math.random() * 90
+      : tier === 'strong'
+      ? 110 + Math.random() * 60
+      : 85 + Math.random() * 45;
     this.botNextDecisionAt.set(bot.id, now + reactionDelay);
 
     // Natural blunder chance: occasionally bot gets distracted or misses a turn
-    const blunderChance =
-      tier === 'weak' ? 0.22 : tier === 'normal' ? 0.11 : tier === 'strong' ? 0.04 : 0.02;
+    const blunderChance = isOnline
+      ? tier === 'weak' ? 0.14 : tier === 'normal' ? 0.06 : 0.02
+      : tier === 'weak' ? 0.22 : tier === 'normal' ? 0.11 : tier === 'strong' ? 0.04 : 0.02;
     const isBlundering = Math.random() < blunderChance;
 
     // Forgiving sense range so bots don't coward away from 300px afar
@@ -1571,8 +1611,8 @@ export class SimulationWorld {
       bot.targetAngle = normalizeAngle(Math.atan2(avoidY, avoidX) + jitter);
       // Weak bots don't always boost-escape; higher tier bots boost if in dire danger
       bot.isBoosting = tier !== 'weak' && urgentDanger && bot.score > 35 && !isBlundering;
-      if (tier === 'strong' || tier === 'titan') {
-        if (urgentDanger && now >= bot.abilityCooldownUntil && Math.random() < 0.25) {
+      if (isOnline || tier === 'strong' || tier === 'titan') {
+        if (urgentDanger && now >= bot.abilityCooldownUntil && Math.random() < (isOnline ? 0.35 : 0.25)) {
           this.castAbility(bot, now);
         }
       }
@@ -1587,23 +1627,23 @@ export class SimulationWorld {
       bot.isBoosting =
         bot.score > 25 &&
         (closeRivalDist < 260 || maxLootValue >= 10) &&
-        Math.random() < 0.65;
+        Math.random() < (isOnline ? 0.72 : 0.65);
       return;
     }
 
-    // Strong & Titan bots attempt calculated cuts on nearby rivals
+    // Aggressive cutoffs and offensive maneuvers (very active in Online mode)
     if (
-      (tier === 'strong' || tier === 'titan') &&
+      (isOnline || tier === 'strong' || tier === 'titan') &&
       closeRival &&
-      closeRivalDist < 290 &&
-      bot.score > closeRival.score * 1.2 + 25
+      closeRivalDist < 320 &&
+      bot.score > 28
     ) {
-      const leadDist = tier === 'titan' ? 140 : 110;
+      const leadDist = isOnline ? 125 : (tier === 'titan' ? 140 : 110);
       const interceptX = closeRival.x + Math.cos(closeRival.angle) * leadDist;
       const interceptY = closeRival.y + Math.sin(closeRival.angle) * leadDist;
       bot.targetAngle = Math.atan2(interceptY - bot.y, interceptX - bot.x);
-      bot.isBoosting = bot.score > 55 && Math.random() < 0.38;
-      if (now >= bot.abilityCooldownUntil && Math.random() < 0.08) {
+      bot.isBoosting = bot.score > 30 && Math.random() < (isOnline ? 0.52 : 0.38);
+      if (now >= bot.abilityCooldownUntil && Math.random() < (isOnline ? 0.16 : 0.08)) {
         this.castAbility(bot, now);
       }
       return;

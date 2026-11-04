@@ -47,7 +47,7 @@ export const DEFAULT_PROFILE: PlayerProfile = {
 export function xpForLevel(level: number): number {
   if (level <= 1) return 0;
   const n = level - 1;
-  return n * 75 + n * (n - 1) * 12;
+  return n * 125 + n * (n - 1) * 20;
 }
 
 export function getLevelInfo(totalXp: number): {
@@ -133,11 +133,12 @@ export function applyMatchOutcome(
   const bestRunScore = Math.max(0, Math.floor(Math.max(input.finalScore, input.peakScore)));
   const isNewHighScore = bestRunScore > profile.highScore && bestRunScore > 0;
 
-  // Reward XP for score, kills, and survival minutes
-  const xpEarned = Math.max(
-    12,
-    Math.floor(bestRunScore * 0.85) + input.kills * 40 + Math.floor(input.durationSec / 20) * 10
-  );
+  // Reward XP for score, kills, and survival minutes (reduced by 2x for balanced progression)
+  const rawXp =
+    Math.floor(bestRunScore * 0.42) +
+    input.kills * 20 +
+    Math.floor(input.durationSec / 30) * 5;
+  const xpEarned = Math.max(6, Math.floor(rawXp));
 
   const nextTotalXp = profile.totalXp + xpEarned;
   const newLevel = getLevelInfo(nextTotalXp).level;

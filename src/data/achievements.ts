@@ -202,7 +202,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   },
 ];
 
-// 160+ Natural Player Nicknames (No "[BOT]" tags so arenas feel 100% organic!)
+// 160+ Natural Player Nicknames for Offline Mode
 export const PLAYER_LIKE_NAMES: string[] = [
   'ShadowViper', 'AlexPro', 'Kaan_TR', 'Qartal', 'StormX', 'Nika_7', 'GhostRider',
   'Maverick', 'Elnur99', 'Zeyneb', 'DarkKnight', 'blazex', 'Vortex', 'SniperWolf',
@@ -227,4 +227,53 @@ export const PLAYER_LIKE_NAMES: string[] = [
   'Kenan', 'Umut', 'pavel', 'Crusher', 'Goliath', 'colossus', 'Atlas',
   'Elvin95', 'Oguz', 'timur', 'Tornado', 'Cyclone', 'typhoon', 'Tsunami',
   'Babek', 'Atilla', 'iskender', 'Legend27', 'ProGamer', 'king_slither', 'ozy',
+];
+
+// 220+ Authentic International Gamertags for Online Mode (Zero local names, completely real player vibes)
+export const INTERNATIONAL_ONLINE_NAMES: string[] = [
+  '[VIPER] Axel', '[WAR] Reaper', '[777] Lucky', '[PRO] Kira', '[EU] Oliver',
+  '[USA] Hunter', '[BR] Lucas_99', '[FR] Pierre', '[DE] Felix', '[IT] Marco_X',
+  '[ESP] Mateo', '[JP] Sora_9', '[KR] JinWoo', '[UK] Arthur', '[NL] Lars_NL',
+  'ShadowHunter', 'xX_Dragon_Xx', 'ToxicWaste', 'FrostByte_99', 'Slytherin_King',
+  'NeonRider', 'CyberSamurai', 'GhostSniper', 'DarkNemesis', 'Vortex_Gamer',
+  'SlitherGod', 'WormMaster', 'NightCrawler', 'ThunderStrike', 'ZenithPro',
+  'AlphaOmega', 'SilentReaper', 'GamerGirl_01', 'SnakeCharmer', 'TurboDrift',
+  'IronClad', 'BlazeFury', 'PhantomStrike', 'StormBreaker', 'KingCobra_99',
+  'DeathBringer', 'SpeedDemon', 'GoldenEagle', 'Titanium_X', 'HyperSonic',
+  'LoneWolf_42', 'QuantumLeap', 'InfernoX', 'ZeroGravity', 'PixelWarrior',
+  'CrimsonTide', 'SilverFang', 'OverLord_X', 'ShadowFiend', 'BioHazard',
+  'Glitch_99', 'OmegaViper', 'NovaBlast', 'DoomSlayer', 'SubZero_Pro',
+  'Nightmare_X', 'Venomous_Bite', 'ApexPredator', 'DragonSlayer', 'RaptorClaw',
+  'CyberViper', 'GhostRider_77', 'MatrixCode', 'StealthOperative', 'Valkyrie_FR',
+  'Kaiser_DE', 'Taro_Tokyo', 'Carlos_MX', 'Chloe_UK', 'Hans_Berlin',
+  'Antoine_PARIS', 'Jack_NYC', 'AstralDrifter', 'SolarFlare', 'LunarEclipse',
+  'SuperNova_X', 'GalaxyWanderer', 'ChronoTrigger', 'VoidWalker', 'NebulaStorm',
+  'AbyssalHorror', 'EternalFlame', 'FrostBite_99', 'VoltSurge', 'PlasmaBurn',
+  'NeutronStar', 'BlackHole_Sun', 'Singularity', 'EventHorizon', 'DarkMatter',
+  'AntiMatter', 'CosmicDust', 'StarDust', 'SolarWind', 'AuroraBorealis',
+  'IonStorm', 'Graviton', 'TachyonPulse', 'PhotonBeam', 'LaserSight',
+  'PlasmaRifle', 'ViperStrike', 'CobraAssault', 'PythonGrip', 'AnacondaCrush',
+  'BoaConstrictor', 'Rattler_99', 'MambaFast', 'TaipanBite', 'CopperHead',
+  'CottonMouth', 'Sidewinder_X', 'GarterSnake', 'CoralSnake', 'Kingsnake',
+  'GreenTree', 'BlackRacer', 'Coachwhip', 'IndigoSnake', 'WaterMoccasin',
+  'PuffAdder', 'GaboonViper', 'Boomslang', 'Bushmaster', 'FerDeLance',
+  'DeathAdder', 'InlandTaipan', 'TigerSnake', 'BrownSnake', 'BlackSnake',
+  'DiamondPython', 'CarpetPython', 'BallPython_Pro', 'Reticulated_X', 'BloodPython',
+  'Rave_Knight', 'Echo_Location', 'BulletProof', 'Havoc_99', 'Rogue_Agent',
+  'Spectre_007', 'Banshee_X', 'Hydra_Heads', 'Kraken_Awakens', 'Leviathan_Roar',
+  'Behemoth', 'Chimera_Venom', 'Basilisk_Eye', 'Medusa_Stare', 'Gorgon_Stone',
+  'Cerberus_Gate', 'Fenrir_Fang', 'Jormungandr', 'Ouroboros', 'Wyvern_Flame',
+  'Manticore', 'Griffin_Claw', 'Sphinx_Riddle', 'Minotaur_Rage', 'Centaur_Arrow',
+  'Cyclops_Gaze', 'Pegasus_Wings', 'Phoenix_Ash', 'Icarus_Sun', 'Daedalus_Maze',
+  'Achilles_Heel', 'Hector_Troy', 'Odysseus_Bow', 'Perseus_Shield', 'Theseus_Thread',
+  'Jason_Argonaut', 'Hercules_Club', 'Zeus_Bolt', 'Poseidon_Trident', 'Hades_Helm',
+  'Ares_Spear', 'Athena_Aegis', 'Apollo_Chariot', 'Hermes_Sandals', 'Hephaestus_Forge',
+  'Dionysus_Vine', 'Demeter_Scythe', 'Hestia_Hearth', 'Hera_Peacock', 'Nemesis_Scale',
+  'Thanatos_Touch', 'Hypnos_Sleep', 'Morpheus_Dream', 'Erebus_Shadow', 'Nyx_Night',
+  'Chaos_Void', 'Gaia_Earth', 'Uranus_Sky', 'Cronus_Time', 'Rhea_Crown',
+  'Oceanus_Deep', 'Tethys_Current', 'Hyperion_Light', 'Theia_Glory', 'Coeus_Inquiry',
+  'Phoebe_Moon', 'Crius_Constellation', 'Mnemosyne_Memory', 'Themis_Justice', 'Iapetus_Mortal',
+  'Atlas_Shoulders', 'Prometheus_Fire', 'Epimetheus_Folly', 'Leto_Grace', 'Asteria_Falling',
+  'Hecate_Torches', 'Selene_Chariot', 'Helios_Rays', 'Eos_Dawn', 'Boreas_North',
+  'Zephyrus_West', 'Notus_South', 'Eurus_East', 'Iris_Rainbow', 'Nike_Victory',
 ];

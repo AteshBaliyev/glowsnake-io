@@ -95,6 +95,9 @@ export interface UITranslations {
   skill: string;
   switchOffline: string;
   connectionFailed: string;
+  connectingOnline: string;
+  internetRequired: string;
+  onlineRegion: string;
   gameOver: string;
   timePlayed: string;
   bestRank: string;
@@ -174,6 +177,9 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     skill: 'Skill',
     switchOffline: 'Play Offline',
     connectionFailed: 'Could not connect to server',
+    connectingOnline: 'Connecting to Global Arena...',
+    internetRequired: 'Internet connection required to enter Online Arena!',
+    onlineRegion: 'Frankfurt #1 (EU)',
     gameOver: 'Match Summary',
     timePlayed: 'Time Played',
     bestRank: 'Best Rank',
@@ -252,6 +258,9 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     skill: 'Güc',
     switchOffline: 'Oflayn oyna',
     connectionFailed: 'Serverlə bağlantı qurulmadı',
+    connectingOnline: 'Qlobal Arenaya qoşulur...',
+    internetRequired: 'Onlayn arenaya daxil olmaq üçün internet bağlantısı tələb olunur!',
+    onlineRegion: 'Frankfurt #1 (EU)',
     gameOver: 'Oyun Nəticəsi',
     timePlayed: 'Oynanılan Müddət',
     bestRank: 'Ən Yaxşı Sıra',
@@ -330,6 +339,9 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     skill: 'Güç',
     switchOffline: 'Çevrimdışı oyna',
     connectionFailed: 'Sunucuya bağlanılamadı',
+    connectingOnline: 'Küresel Arenaya bağlanıyor...',
+    internetRequired: 'Çevrimiçi arenaya girmek için internet bağlantısı gereklidir!',
+    onlineRegion: 'Frankfurt #1 (EU)',
     gameOver: 'Oyun Özeti',
     timePlayed: 'Oynanan Süre',
     bestRank: 'En İyi Sıra',
@@ -408,6 +420,9 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     skill: 'Навык',
     switchOffline: 'Играть офлайн',
     connectionFailed: 'Не удалось подключиться к серверу',
+    connectingOnline: 'Подключение к глобальной арене...',
+    internetRequired: 'Для входа на онлайн-арену требуется подключение к интернету!',
+    onlineRegion: 'Франкфурт #1 (EU)',
     gameOver: 'Итоги Игры',
     timePlayed: 'Время в игре',
     bestRank: 'Лучшее место',

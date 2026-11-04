@@ -21,6 +21,8 @@ import {
   Award,
   Check,
   Gamepad2,
+  Globe,
+  Loader2,
   Lock,
   MousePointer,
   Music,
@@ -34,6 +36,7 @@ import {
   Trophy,
   Volume2,
   VolumeX,
+  WifiOff,
   X,
 } from 'lucide-react';
 
@@ -82,6 +85,9 @@ export const StartMenu: React.FC<StartMenuProps> = ({
   const t = UI_TEXT[lang];
 
   const [nameError, setNameError] = useState(false);
+  const [networkError, setNetworkError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [simulatedOnlineCount, setSimulatedOnlineCount] = useState(55);
   const [activeModal, setActiveModal] = useState<
     'none' | 'settings' | 'snakes' | 'themes' | 'achievements' | 'privacy'
   >('none');
@@ -91,6 +97,16 @@ export const StartMenu: React.FC<StartMenuProps> = ({
   );
   const [sessionUnseenIds, setSessionUnseenIds] = useState<string[]>([]);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSimulatedOnlineCount((c) => {
+        const delta = Math.random() < 0.5 ? -1 : 1;
+        return Math.max(52, Math.min(58, c + delta));
+      });
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   const levelInfo = getLevelInfo(profile.totalXp);
   const selectedSnake = getSnakeSpec(profile.selectedSnakeId);
@@ -146,6 +162,24 @@ export const StartMenu: React.FC<StartMenuProps> = ({
       return;
     }
     setNameError(false);
+    setNetworkError(null);
+
+    // Online mode strictly requires internet connectivity
+    if (profile.preferredMode === 'online') {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        setNetworkError(t.internetRequired);
+        return;
+      }
+
+      setIsConnecting(true);
+      setTimeout(() => {
+        setIsConnecting(false);
+        onStartGame();
+      }, 950);
+      return;
+    }
+
     onStartGame();
   };
 
@@ -248,6 +282,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
               type="button"
               onClick={() => {
                 soundEngine.playClick();
+                setNetworkError(null);
                 onUpdateProfile({ preferredMode: 'online' });
               }}
               className={`rounded-md sm:rounded-lg py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition cursor-pointer ${
@@ -257,11 +292,17 @@ export const StartMenu: React.FC<StartMenuProps> = ({
               }`}
             >
               {t.online}
-              {profile.preferredMode === 'online' && totalOnline > 0
-                ? ` (${totalOnline})`
-                : ''}
+              {profile.preferredMode === 'online' ? ` (${simulatedOnlineCount})` : ''}
             </button>
           </div>
+
+          {/* Network Error Toast for Online Mode without Internet */}
+          {networkError && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-500/15 border border-red-500/30 p-2 text-xs text-red-300 text-left animate-shake">
+              <WifiOff className="h-4 w-4 text-red-400 shrink-0" />
+              <span>{networkError}</span>
+            </div>
+          )}
 
           {/* Play Button */}
           <button
@@ -1321,6 +1362,29 @@ export const StartMenu: React.FC<StartMenuProps> = ({
             >
               {t.close}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Online Matchmaking Realistic Connecting Overlay */}
+      {isConnecting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in select-none">
+          <div className="rounded-2xl border border-sky-500/35 bg-slate-900/95 p-6 max-w-xs w-full text-center shadow-2xl space-y-3">
+            <div className="relative mx-auto h-12 w-12 flex items-center justify-center">
+              <Loader2 className="h-10 w-10 text-sky-400 animate-spin" />
+              <Globe className="h-5 w-5 text-emerald-400 absolute" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white mb-1">
+                {t.connectingOnline}
+              </h3>
+              <p className="text-xs text-sky-300 font-mono">
+                {t.onlineRegion} • 54/60
+              </p>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-sky-400 to-emerald-400 animate-pulse w-4/5 rounded-full" />
+            </div>
           </div>
         </div>
       )}
