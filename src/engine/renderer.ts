@@ -314,11 +314,13 @@ export class ArenaRenderer {
         this.camY += (targetCamY - this.camY) * lerp;
       }
 
-      const sizeZoom = Math.max(0.56, 1 - Math.sqrt(me.score) * 0.0055);
+      // Progressive camera zoom: as snake grows bigger and longer, map zooms out smoothly to give a clear wide view
+      const scoreZoom = 1.0 / Math.pow(1 + Math.sqrt(me.score) * 0.026, 0.58);
+      const sizeZoom = Math.max(0.34, scoreZoom);
       const wideBonus = timeMs < me.wideViewUntil ? 0.78 : 1;
-      const mobileFit = width < 768 ? 0.84 : 1;
+      const mobileFit = width < 768 ? 0.90 : 1;
       const desiredZoom = sizeZoom * wideBonus * mobileFit;
-      this.camZoom += (desiredZoom - this.camZoom) * Math.min(1, dtSec * 4);
+      this.camZoom += (desiredZoom - this.camZoom) * Math.min(1, dtSec * 3.5);
     }
 
     ctx.fillStyle = map.bgColor;
