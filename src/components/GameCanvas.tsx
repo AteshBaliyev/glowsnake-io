@@ -204,15 +204,21 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     updateCanvasSize();
     window.addEventListener('resize', updateCanvasSize);
 
-    const onMouseMove = (e: MouseEvent) => {
-      if (touchAngleRef.current !== null && profileRef.current.controlMode === 'joystick') return;
+    let activeCanvasTouchId: number | null = null;
+
+    const updateSteerFromCoord = (clientX: number, clientY: number) => {
       const cx = window.innerWidth / 2;
       const cy = window.innerHeight / 2;
-      const dx = e.clientX - cx;
-      const dy = e.clientY - cy;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
       if (Math.hypot(dx, dy) > 8) {
         inputAngleRef.current = Math.atan2(dy, dx);
       }
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (touchAngleRef.current !== null && profileRef.current.controlMode === 'joystick') return;
+      updateSteerFromCoord(e.clientX, e.clientY);
     };
 
     const onMouseDown = (e: MouseEvent) => {
@@ -244,6 +250,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       if (profileRef.current.musicEnabled) {
         soundEngine.startMusic();
       }
+
+      // Direct touchscreen steering for arrow and classic modes
+      if (profileRef.current.controlMode !== 'joystick') {
+        const touch = e.changedTouches[0];
+        if (touch && activeCanvasTouchId === null) {
+          activeCanvasTouchId = touch.identifier;
+          updateSteerFromCoord(touch.clientX, touch.clientY);
+        }
+      }
+
       if (profileRef.current.doubleTapToBoost && e.touches.length === 1) {
         const nowTap = performance.now();
         if (nowTap - lastTapTimeRef.current < 280) {
@@ -251,6 +267,30 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           if (doubleTapBoostRef.current) soundEngine.playBoostStart();
         }
         lastTapTimeRef.current = nowTap;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (profileRef.current.controlMode !== 'joystick') {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const touch = e.changedTouches[i];
+          if (touch.identifier === activeCanvasTouchId || activeCanvasTouchId === null) {
+            activeCanvasTouchId = touch.identifier;
+            updateSteerFromCoord(touch.clientX, touch.clientY);
+            break;
+          }
+        }
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (activeCanvasTouchId !== null) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activeCanvasTouchId) {
+            activeCanvasTouchId = null;
+            break;
+          }
+        }
       }
     };
 
@@ -286,6 +326,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     window.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mousedown', onMouseDown);
     canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
     window.addEventListener('mouseup', onMouseUp);
     canvas.addEventListener('contextmenu', onContextMenu);
     window.addEventListener('keydown', onKeyDown);
@@ -437,6 +480,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             wigglingFood: profileRef.current.wigglingFood,
             mapOnTop: profileRef.current.mapOnTop,
             lookAhead: profileRef.current.lookAhead,
+            controlMode: profileRef.current.controlMode,
           }
         );
       } else {
@@ -485,6 +529,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       window.removeEventListener('mousemove', onMouseMove);
       canvas.removeEventListener('mousedown', onMouseDown);
       canvas.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
       window.removeEventListener('mouseup', onMouseUp);
       canvas.removeEventListener('contextmenu', onContextMenu);
       window.removeEventListener('keydown', onKeyDown);

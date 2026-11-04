@@ -395,21 +395,21 @@ export const StartMenu: React.FC<StartMenuProps> = ({
         {t.authorCredit}
       </footer>
 
-      {/* ================= SETTINGS MODAL (Matches user reference exactly!) ================= */}
+      {/* ================= SETTINGS MODAL ================= */}
       {activeModal === 'settings' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5 overflow-y-auto">
-          <div className="w-full max-w-4xl rounded-3xl bg-[#141528] border-2 border-cyan-500/30 p-5 sm:p-6 text-slate-100 shadow-2xl relative my-auto max-h-[92vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl sm:max-w-3xl rounded-2xl sm:rounded-3xl bg-[#141528] border-2 border-cyan-500/30 p-3 sm:p-4 text-slate-100 shadow-2xl relative my-auto max-h-[96vh] flex flex-col">
             {/* Top Bar: Title & Language Selector */}
-            <div className="flex flex-wrap items-center justify-between border-b border-white/10 pb-3 mb-4 gap-3 shrink-0">
+            <div className="flex flex-wrap items-center justify-between border-b border-white/10 pb-2 mb-2 gap-2 shrink-0">
               <div className="flex items-center gap-2">
-                <Settings className="h-5 w-5 text-cyan-400" />
-                <h2 className="text-lg font-extrabold text-white tracking-wide">
+                <Settings className="h-4 w-4 text-cyan-400" />
+                <h2 className="text-sm sm:text-base font-extrabold text-white tracking-wide">
                   {t.settings}
                 </h2>
               </div>
 
               {/* Language Chips */}
-              <div className="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-white/10">
+              <div className="flex items-center gap-1 bg-slate-900/80 p-0.5 rounded-xl border border-white/10">
                 {LANGUAGE_OPTIONS.map((opt) => {
                   const active = lang === opt.code;
                   return (
@@ -420,7 +420,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                         soundEngine.playClick();
                         onUpdateProfile({ language: opt.code });
                       }}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                      className={`rounded-lg px-2 py-0.5 text-[11px] font-bold transition cursor-pointer ${
                         active
                           ? 'bg-cyan-500 text-slate-950 shadow-sm'
                           : 'text-slate-400 hover:text-white'
@@ -434,17 +434,17 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
               <button
                 onClick={() => setActiveModal('none')}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white cursor-pointer ml-auto"
+                className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white cursor-pointer ml-auto"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             {/* Main 2-Column Content */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0 overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 overflow-y-auto max-h-[calc(92vh-50px)] custom-scrollbar pr-1">
               {/* LEFT COLUMN: Control Modes, Handedness & Orientation */}
-              <div className="flex flex-col justify-between space-y-4">
-                <div className="space-y-3">
+              <div className="flex flex-col justify-between space-y-2">
+                <div className="space-y-1.5">
                   {/* 1. Arrow Mode */}
                   <button
                     type="button"
@@ -452,31 +452,31 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       soundEngine.playClick();
                       onUpdateProfile({ controlMode: 'arrow' });
                     }}
-                    className={`w-full rounded-2xl border-2 p-3 transition flex items-center justify-between cursor-pointer ${
+                    className={`w-full rounded-xl sm:rounded-2xl border-2 p-1.5 sm:p-2 transition flex items-center justify-between cursor-pointer ${
                       profile.controlMode === 'arrow'
-                        ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_15px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400'
+                        ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_12px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400'
                         : 'border-white/15 bg-slate-900/60 hover:bg-slate-800/70'
                     }`}
                   >
                     {/* Green Snake Graphic */}
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-5 w-24 rounded-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-emerald-300 flex items-center justify-end pr-1 relative shadow-inner">
+                    <div className="flex items-center gap-1">
+                      <div className="h-4 w-16 sm:w-20 rounded-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-emerald-300 flex items-center justify-end pr-1 relative shadow-inner">
                         <div className="flex flex-col gap-0.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />
+                          <span className="h-1 w-1 rounded-full bg-slate-950" />
+                          <span className="h-1 w-1 rounded-full bg-slate-950" />
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex-1 text-center px-2">
-                      <span className="text-xs sm:text-sm font-extrabold text-white block">
+                    <div className="flex-1 text-center px-1">
+                      <span className="text-[11px] sm:text-xs font-extrabold text-white block truncate">
                         {t.controlArrowMode}
                       </span>
                     </div>
 
                     {/* Arrow */}
-                    <div className="h-8 w-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0 border border-emerald-400/40">
-                      <ArrowRight className="h-5 w-5 text-emerald-400" />
+                    <div className="h-6 w-6 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0 border border-emerald-400/40">
+                      <ArrowRight className="h-3.5 w-3.5 text-emerald-400" />
                     </div>
                   </button>
 
@@ -487,31 +487,31 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       soundEngine.playClick();
                       onUpdateProfile({ controlMode: 'classic' });
                     }}
-                    className={`w-full rounded-2xl border-2 p-3 transition flex items-center justify-between cursor-pointer ${
+                    className={`w-full rounded-xl sm:rounded-2xl border-2 p-1.5 sm:p-2 transition flex items-center justify-between cursor-pointer ${
                       profile.controlMode === 'classic'
-                        ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_15px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400'
+                        ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_12px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400'
                         : 'border-white/15 bg-slate-900/60 hover:bg-slate-800/70'
                     }`}
                   >
                     {/* Brown/Orange Snake Graphic */}
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-5 w-24 rounded-full bg-gradient-to-r from-amber-700 via-amber-500 to-amber-400 flex items-center justify-end pr-1 relative shadow-inner">
+                    <div className="flex items-center gap-1">
+                      <div className="h-4 w-16 sm:w-20 rounded-full bg-gradient-to-r from-amber-700 via-amber-500 to-amber-400 flex items-center justify-end pr-1 relative shadow-inner">
                         <div className="flex flex-col gap-0.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />
+                          <span className="h-1 w-1 rounded-full bg-slate-950" />
+                          <span className="h-1 w-1 rounded-full bg-slate-950" />
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex-1 text-center px-2">
-                      <span className="text-xs sm:text-sm font-extrabold text-white block">
+                    <div className="flex-1 text-center px-1">
+                      <span className="text-[11px] sm:text-xs font-extrabold text-white block truncate">
                         {t.controlClassicMode}
                       </span>
                     </div>
 
                     {/* Hand pointing icon */}
-                    <div className="h-8 w-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 border border-amber-400/40">
-                      <MousePointer className="h-4 w-4 text-amber-300" />
+                    <div className="h-6 w-6 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 border border-amber-400/40">
+                      <MousePointer className="h-3.5 w-3.5 text-amber-300" />
                     </div>
                   </button>
 
@@ -522,37 +522,37 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       soundEngine.playClick();
                       onUpdateProfile({ controlMode: 'joystick' });
                     }}
-                    className={`w-full rounded-2xl border-2 p-3 transition flex items-center justify-between cursor-pointer ${
+                    className={`w-full rounded-xl sm:rounded-2xl border-2 p-1.5 sm:p-2 transition flex items-center justify-between cursor-pointer ${
                       profile.controlMode === 'joystick'
-                        ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_15px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400'
+                        ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_12px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400'
                         : 'border-white/15 bg-slate-900/60 hover:bg-slate-800/70'
                     }`}
                   >
                     {/* Purple Snake Graphic */}
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-5 w-24 rounded-full bg-gradient-to-r from-purple-700 via-purple-500 to-purple-400 flex items-center justify-end pr-1 relative shadow-inner">
+                    <div className="flex items-center gap-1">
+                      <div className="h-4 w-16 sm:w-20 rounded-full bg-gradient-to-r from-purple-700 via-purple-500 to-purple-400 flex items-center justify-end pr-1 relative shadow-inner">
                         <div className="flex flex-col gap-0.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />
+                          <span className="h-1 w-1 rounded-full bg-slate-950" />
+                          <span className="h-1 w-1 rounded-full bg-slate-950" />
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex-1 text-center px-2">
-                      <span className="text-xs sm:text-sm font-extrabold text-white block">
+                    <div className="flex-1 text-center px-1">
+                      <span className="text-[11px] sm:text-xs font-extrabold text-white block truncate">
                         {t.controlJoystickMode}
                       </span>
                     </div>
 
                     {/* Joystick Icon */}
-                    <div className="h-8 w-8 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0 border border-purple-400/40">
-                      <Gamepad2 className="h-4 w-4 text-purple-300" />
+                    <div className="h-6 w-6 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0 border border-purple-400/40">
+                      <Gamepad2 className="h-3.5 w-3.5 text-purple-300" />
                     </div>
                   </button>
                 </div>
 
                 {/* Sub Controls: Handedness & Orientation Mode */}
-                <div className="flex items-center justify-center gap-4 py-2">
+                <div className="flex items-center justify-center gap-3 py-1">
                   {/* Right Handed Pad (Thumbstick Left, Action Right) */}
                   <button
                     type="button"
@@ -561,18 +561,18 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       onUpdateProfile({ controlHand: 'right' });
                     }}
                     title={t.controlLayoutRight}
-                    className={`h-14 w-16 rounded-xl border-2 p-2 flex items-center justify-between transition cursor-pointer ${
+                    className={`h-10 w-12 sm:w-14 rounded-xl border-2 p-1.5 flex items-center justify-between transition cursor-pointer ${
                       profile.controlHand === 'right'
-                        ? 'border-cyan-400 bg-cyan-950/50 shadow-[0_0_10px_rgba(34,211,238,0.3)]'
+                        ? 'border-cyan-400 bg-cyan-950/50 shadow-[0_0_8px_rgba(34,211,238,0.3)]'
                         : 'border-white/15 bg-slate-900/70 opacity-70 hover:opacity-100'
                     }`}
                   >
-                    <div className="h-6 w-6 rounded-full border border-cyan-400/60 flex items-center justify-center bg-cyan-500/20">
-                      <div className="h-2 w-2 rounded-full bg-cyan-300" />
+                    <div className="h-4 w-4 rounded-full border border-cyan-400/60 flex items-center justify-center bg-cyan-500/20">
+                      <div className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
                     </div>
-                    <div className="flex flex-col gap-1 items-center">
-                      <div className="h-2.5 w-2.5 rounded-full bg-white/70" />
-                      <div className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+                    <div className="flex flex-col gap-0.5 items-center">
+                      <div className="h-1.5 w-1.5 rounded-full bg-white/70" />
+                      <div className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />
                     </div>
                   </button>
 
@@ -584,18 +584,18 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       onUpdateProfile({ controlHand: 'left' });
                     }}
                     title={t.controlLayoutLeft}
-                    className={`h-14 w-16 rounded-xl border-2 p-2 flex items-center justify-between transition cursor-pointer ${
+                    className={`h-10 w-12 sm:w-14 rounded-xl border-2 p-1.5 flex items-center justify-between transition cursor-pointer ${
                       profile.controlHand === 'left'
-                        ? 'border-cyan-400 bg-cyan-950/50 shadow-[0_0_10px_rgba(34,211,238,0.3)]'
+                        ? 'border-cyan-400 bg-cyan-950/50 shadow-[0_0_8px_rgba(34,211,238,0.3)]'
                         : 'border-white/15 bg-slate-900/70 opacity-70 hover:opacity-100'
                     }`}
                   >
-                    <div className="flex flex-col gap-1 items-center">
-                      <div className="h-2.5 w-2.5 rounded-full bg-white/70" />
-                      <div className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+                    <div className="flex flex-col gap-0.5 items-center">
+                      <div className="h-1.5 w-1.5 rounded-full bg-white/70" />
+                      <div className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />
                     </div>
-                    <div className="h-6 w-6 rounded-full border border-cyan-400/60 flex items-center justify-center bg-cyan-500/20">
-                      <div className="h-2 w-2 rounded-full bg-cyan-300" />
+                    <div className="h-4 w-4 rounded-full border border-cyan-400/60 flex items-center justify-center bg-cyan-500/20">
+                      <div className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
                     </div>
                   </button>
 
@@ -615,28 +615,28 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       }
                     }}
                     title={t.autoRotateLabel}
-                    className={`h-14 w-16 rounded-xl border-2 flex items-center justify-center transition cursor-pointer ${
+                    className={`h-10 w-12 sm:w-14 rounded-xl border-2 flex items-center justify-center transition cursor-pointer ${
                       profile.autoRotate
-                        ? 'border-cyan-400 bg-cyan-950/50 shadow-[0_0_10px_rgba(34,211,238,0.3)] text-cyan-300'
+                        ? 'border-cyan-400 bg-cyan-950/50 shadow-[0_0_8px_rgba(34,211,238,0.3)] text-cyan-300'
                         : 'border-white/15 bg-slate-900/70 text-slate-400 hover:text-white'
                     }`}
                   >
                     <div className="relative">
-                      <Smartphone className="h-6 w-6" />
-                      <RotateCw className="h-3.5 w-3.5 absolute -top-1 -right-1 text-cyan-400 animate-spin-slow" />
+                      <Smartphone className="h-5 w-5" />
+                      <RotateCw className="h-2.5 w-2.5 absolute -top-1 -right-1 text-cyan-400 animate-spin-slow" />
                     </div>
                   </button>
                 </div>
 
                 {/* Bottom Left OK Button */}
-                <div className="pt-2">
+                <div className="pt-1">
                   <button
                     type="button"
                     onClick={() => {
                       soundEngine.playClick();
                       setActiveModal('none');
                     }}
-                    className="w-full sm:w-36 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm tracking-wide py-3 px-6 shadow-lg transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full sm:w-32 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs tracking-wide py-2 px-4 shadow-md transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <span>{t.ok}</span>
                   </button>
@@ -644,10 +644,10 @@ export const StartMenu: React.FC<StartMenuProps> = ({
               </div>
 
               {/* RIGHT COLUMN: Checkboxes (Matching Screenshot) */}
-              <div className="flex flex-col justify-between space-y-2.5">
-                <div className="space-y-2">
+              <div className="flex flex-col justify-between space-y-1.5">
+                <div className="space-y-1">
                   {/* 1. Show player names */}
-                  <label className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition select-none">
+                  <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
                     <input
                       type="checkbox"
                       checked={profile.showPlayerNames}
@@ -658,21 +658,21 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       className="hidden"
                     />
                     <div
-                      className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center transition ${
+                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition shrink-0 ${
                         profile.showPlayerNames
-                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.4)] text-slate-950'
+                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.4)] text-slate-950'
                           : 'border-white/30 bg-slate-900/80 text-transparent'
                       }`}
                     >
-                      <Check className="h-4 w-4 stroke-[3]" />
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
                     </div>
-                    <span className="text-xs sm:text-sm font-bold text-white">
+                    <span className="text-xs font-semibold text-white truncate">
                       {t.showPlayerNames}
                     </span>
                   </label>
 
                   {/* 2. Fade my name */}
-                  <label className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition select-none">
+                  <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
                     <input
                       type="checkbox"
                       checked={profile.fadeMyName}
@@ -683,21 +683,21 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       className="hidden"
                     />
                     <div
-                      className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center transition ${
+                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition shrink-0 ${
                         profile.fadeMyName
-                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.4)] text-slate-950'
+                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.4)] text-slate-950'
                           : 'border-white/30 bg-slate-900/80 text-transparent'
                       }`}
                     >
-                      <Check className="h-4 w-4 stroke-[3]" />
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
                     </div>
-                    <span className="text-xs sm:text-sm font-bold text-white">
+                    <span className="text-xs font-semibold text-white truncate">
                       {t.fadeMyName}
                     </span>
                   </label>
 
                   {/* 3. Best graphics */}
-                  <label className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition select-none">
+                  <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
                     <input
                       type="checkbox"
                       checked={profile.bestGraphics}
@@ -708,21 +708,21 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       className="hidden"
                     />
                     <div
-                      className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center transition ${
+                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition shrink-0 ${
                         profile.bestGraphics
-                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.4)] text-slate-950'
+                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.4)] text-slate-950'
                           : 'border-white/30 bg-slate-900/80 text-transparent'
                       }`}
                     >
-                      <Check className="h-4 w-4 stroke-[3]" />
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
                     </div>
-                    <span className="text-xs sm:text-sm font-bold text-white">
+                    <span className="text-xs font-semibold text-white truncate">
                       {t.bestGraphics}
                     </span>
                   </label>
 
                   {/* 4. Wiggling food */}
-                  <label className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition select-none">
+                  <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
                     <input
                       type="checkbox"
                       checked={profile.wigglingFood}
@@ -733,21 +733,21 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       className="hidden"
                     />
                     <div
-                      className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center transition ${
+                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition shrink-0 ${
                         profile.wigglingFood
-                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.4)] text-slate-950'
+                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.4)] text-slate-950'
                           : 'border-white/30 bg-slate-900/80 text-transparent'
                       }`}
                     >
-                      <Check className="h-4 w-4 stroke-[3]" />
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
                     </div>
-                    <span className="text-xs sm:text-sm font-bold text-white">
+                    <span className="text-xs font-semibold text-white truncate">
                       {t.wigglingFood}
                     </span>
                   </label>
 
                   {/* 5. Map on top */}
-                  <label className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition select-none">
+                  <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
                     <input
                       type="checkbox"
                       checked={profile.mapOnTop}
@@ -758,21 +758,21 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       className="hidden"
                     />
                     <div
-                      className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center transition ${
+                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition shrink-0 ${
                         profile.mapOnTop
-                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.4)] text-slate-950'
+                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.4)] text-slate-950'
                           : 'border-white/30 bg-slate-900/80 text-transparent'
                       }`}
                     >
-                      <Check className="h-4 w-4 stroke-[3]" />
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
                     </div>
-                    <span className="text-xs sm:text-sm font-bold text-white">
+                    <span className="text-xs font-semibold text-white truncate">
                       {t.mapOnTop}
                     </span>
                   </label>
 
                   {/* 6. Double tap to boost */}
-                  <label className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition select-none">
+                  <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
                     <input
                       type="checkbox"
                       checked={profile.doubleTapToBoost}
@@ -783,21 +783,21 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       className="hidden"
                     />
                     <div
-                      className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center transition ${
+                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition shrink-0 ${
                         profile.doubleTapToBoost
-                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.4)] text-slate-950'
+                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.4)] text-slate-950'
                           : 'border-white/30 bg-slate-900/80 text-transparent'
                       }`}
                     >
-                      <Check className="h-4 w-4 stroke-[3]" />
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
                     </div>
-                    <span className="text-xs sm:text-sm font-bold text-white">
+                    <span className="text-xs font-semibold text-white truncate">
                       {t.doubleTapToBoost}
                     </span>
                   </label>
 
-                  {/* 7. Look ahead (Unchecked by default in reference) */}
-                  <label className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition select-none">
+                  {/* 7. Look ahead */}
+                  <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
                     <input
                       type="checkbox"
                       checked={profile.lookAhead}
@@ -808,21 +808,21 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       className="hidden"
                     />
                     <div
-                      className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center transition ${
+                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition shrink-0 ${
                         profile.lookAhead
-                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.4)] text-slate-950'
+                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.4)] text-slate-950'
                           : 'border-white/30 bg-slate-900/80 text-transparent'
                       }`}
                     >
-                      <Check className="h-4 w-4 stroke-[3]" />
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
                     </div>
-                    <span className="text-xs sm:text-sm font-bold text-white">
+                    <span className="text-xs font-semibold text-white truncate">
                       {t.lookAhead}
                     </span>
                   </label>
 
-                  {/* 8. New music (Speaker icon) */}
-                  <label className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition select-none">
+                  {/* 8. New music */}
+                  <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
                     <input
                       type="checkbox"
                       checked={profile.musicEnabled}
@@ -835,24 +835,24 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       className="hidden"
                     />
                     <div
-                      className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center transition ${
+                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition shrink-0 ${
                         profile.musicEnabled
-                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.4)] text-slate-950'
+                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.4)] text-slate-950'
                           : 'border-white/30 bg-slate-900/80 text-transparent'
                       }`}
                     >
-                      <Check className="h-4 w-4 stroke-[3]" />
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Music className="h-4 w-4 text-cyan-300" />
-                      <span className="text-xs sm:text-sm font-bold text-white">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Music className="h-3.5 w-3.5 text-cyan-300 shrink-0" />
+                      <span className="text-xs font-semibold text-white truncate">
                         {t.newMusic}
                       </span>
                     </div>
                   </label>
 
-                  {/* 9. New sounds (Note icon) */}
-                  <label className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition select-none">
+                  {/* 9. New sounds */}
+                  <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
                     <input
                       type="checkbox"
                       checked={profile.soundEnabled}
@@ -865,17 +865,17 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       className="hidden"
                     />
                     <div
-                      className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center transition ${
+                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition shrink-0 ${
                         profile.soundEnabled
-                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.4)] text-slate-950'
+                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.4)] text-slate-950'
                           : 'border-white/30 bg-slate-900/80 text-transparent'
                       }`}
                     >
-                      <Check className="h-4 w-4 stroke-[3]" />
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Volume2 className="h-4 w-4 text-cyan-300" />
-                      <span className="text-xs sm:text-sm font-bold text-white">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Volume2 className="h-3.5 w-3.5 text-cyan-300 shrink-0" />
+                      <span className="text-xs font-semibold text-white truncate">
                         {t.newSounds}
                       </span>
                     </div>
@@ -883,17 +883,17 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                 </div>
 
                 {/* Bottom Right Privacy Policy Button */}
-                <div className="flex items-center justify-end pt-2">
+                <div className="flex items-center justify-end pt-1">
                   <button
                     type="button"
                     onClick={() => {
                       soundEngine.playClick();
                       setActiveModal('privacy');
                     }}
-                    className="inline-flex items-center gap-2 rounded-xl bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/40 px-3 py-1.5 text-xs font-semibold text-purple-200 transition cursor-pointer"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/40 px-2.5 py-1 text-[11px] font-semibold text-purple-200 transition cursor-pointer"
                   >
-                    <div className="h-5 w-5 rounded-full bg-purple-600 flex items-center justify-center text-white">
-                      <Lock className="h-3 w-3" />
+                    <div className="h-4 w-4 rounded-full bg-purple-600 flex items-center justify-center text-white">
+                      <Lock className="h-2.5 w-2.5" />
                     </div>
                     <span>{t.privacyPolicy}</span>
                   </button>
@@ -1294,19 +1294,19 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
       {/* ================= THEMES MODAL ================= */}
       {activeModal === 'themes' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-[#181b24] border border-white/10 p-5 text-slate-100">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
-              <h2 className="text-base font-bold text-white">{t.themes}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-2 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl bg-[#181b24] border border-white/10 p-3.5 sm:p-5 text-slate-100 shadow-2xl my-auto max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2 shrink-0">
+              <h2 className="text-sm sm:text-base font-bold text-white">{t.themes}</h2>
               <button
                 onClick={() => setActiveModal('none')}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white cursor-pointer"
+                className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5 overflow-y-auto max-h-[58vh] custom-scrollbar pr-1">
               {ARENA_MAPS.map((map) => {
                 const active = map.id === profile.selectedMapId;
                 const room = rooms.find((r) => r.mapId === map.id);
@@ -1318,23 +1318,23 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       soundEngine.playClick();
                       onUpdateProfile({ selectedMapId: map.id as MapId });
                     }}
-                    className={`w-full flex items-center justify-between rounded-xl border p-3.5 transition cursor-pointer ${
+                    className={`w-full flex items-center justify-between rounded-xl border p-2 sm:p-2.5 transition cursor-pointer ${
                       active
                         ? 'border-emerald-500 bg-emerald-500/10 text-white'
                         : 'border-white/10 bg-slate-900/70 text-slate-200 hover:bg-slate-800'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <span
-                        className="h-7 w-7 rounded-lg border border-white/15 shrink-0"
+                        className="h-6 w-6 rounded-lg border border-white/15 shrink-0"
                         style={{ backgroundColor: map.bgColor }}
                       />
                       <div className="text-left">
-                        <div className="text-sm font-semibold">
+                        <div className="text-xs sm:text-sm font-semibold">
                           {map.name[lang]}
                         </div>
                         {profile.preferredMode === 'online' && room && (
-                          <div className="text-[11px] text-slate-400">
+                          <div className="text-[10px] text-slate-400">
                             {t.players}: {room.activePlayers}
                             {room.instanceCount > 1
                               ? ` • ${room.instanceCount} ${t.serverRoom}`
@@ -1344,16 +1344,16 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       {map.orbPalette.slice(0, 3).map((col, idx) => (
                         <span
                           key={idx}
-                          className="h-2.5 w-2.5 rounded-full"
+                          className="h-2 w-2 rounded-full"
                           style={{ backgroundColor: col }}
                         />
                       ))}
                       {active && (
-                        <Check className="h-4 w-4 text-emerald-400 ml-1.5" />
+                        <Check className="h-3.5 w-3.5 text-emerald-400 ml-1" />
                       )}
                     </div>
                   </button>
@@ -1364,7 +1364,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
             <button
               type="button"
               onClick={() => setActiveModal('none')}
-              className="mt-5 w-full rounded-xl bg-slate-800 hover:bg-slate-700 py-2.5 text-sm font-semibold text-white transition cursor-pointer"
+              className="mt-2.5 w-full rounded-xl bg-slate-800 hover:bg-slate-700 py-2 text-xs sm:text-sm font-semibold text-white transition cursor-pointer shrink-0"
             >
               {t.close}
             </button>

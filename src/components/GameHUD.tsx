@@ -12,17 +12,7 @@ import {
   MapId,
   SnakeEntity,
 } from '@/types/game';
-import {
-  Crown,
-  Gamepad2,
-  LogOut,
-  Music,
-  Sparkles,
-  Users,
-  Volume2,
-  VolumeX,
-  Zap,
-} from 'lucide-react';
+import { Crown, Sparkles, Users, Zap } from 'lucide-react';
 
 export interface HudState {
   mySnake: SnakeEntity | null;
@@ -200,52 +190,6 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               {t.players}: {totalPlayers}
             </span>
           </span>
-
-          <span className="hidden sm:inline text-slate-600">•</span>
-          <span className="hidden sm:inline text-slate-400 tabular-nums">
-            {hud.fps} FPS
-          </span>
-
-          <button
-            onClick={onToggleSound}
-            title={t.soundEffects}
-            className="p-1 rounded-lg hover:bg-white/10 text-slate-300 cursor-pointer"
-          >
-            {soundEnabled ? (
-              <Volume2 className="h-3.5 w-3.5 text-emerald-400" />
-            ) : (
-              <VolumeX className="h-3.5 w-3.5 text-slate-500" />
-            )}
-          </button>
-
-          <button
-            onClick={onToggleMusic}
-            title={t.newMusic}
-            className="p-1 rounded-lg hover:bg-white/10 text-slate-300 cursor-pointer"
-          >
-            <Music
-              className={`h-3.5 w-3.5 ${
-                musicEnabled ? 'text-cyan-400' : 'text-slate-500'
-              }`}
-            />
-          </button>
-
-          <button
-            onClick={() => setForceTouchUI((v) => !v)}
-            className={`p-1 rounded-lg hover:bg-white/10 cursor-pointer ${
-              showMobileControls ? 'text-emerald-400' : 'text-slate-400'
-            }`}
-          >
-            <Gamepad2 className="h-3.5 w-3.5" />
-          </button>
-
-          <button
-            onClick={onLeave}
-            className="inline-flex items-center gap-1 rounded-lg bg-white/10 hover:bg-white/15 px-2 py-0.5 text-xs font-medium text-white cursor-pointer"
-          >
-            <LogOut className="h-3 w-3" />
-            <span>{t.exit}</span>
-          </button>
         </div>
       </div>
 
@@ -329,26 +273,28 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       {/* Mobile Touch Controls with Handedness (Left/Right thumbpad switch) */}
       {showMobileControls && (
         <>
-          {/* Virtual Joystick */}
-          <div
-            ref={joyRef}
-            onTouchStart={handleJoyStart}
-            onTouchMove={handleJoyMove}
-            onTouchEnd={handleJoyEnd}
-            onTouchCancel={handleJoyEnd}
-            className={`pointer-events-auto absolute bottom-6 ${
-              isLeftHanded ? 'right-5' : 'left-5'
-            } h-28 w-28 rounded-full border border-cyan-400/30 bg-slate-900/70 shadow-lg flex items-center justify-center touch-none`}
-          >
+          {/* Virtual Joystick (Only active in joystick mode) */}
+          {controlMode === 'joystick' && (
             <div
-              className="h-11 w-11 rounded-full bg-cyan-400/90 shadow-md transition-transform duration-75"
-              style={{
-                transform: joyKnob
-                  ? `translate(${joyKnob.x}px, ${joyKnob.y}px)`
-                  : 'translate(0px, 0px)',
-              }}
-            />
-          </div>
+              ref={joyRef}
+              onTouchStart={handleJoyStart}
+              onTouchMove={handleJoyMove}
+              onTouchEnd={handleJoyEnd}
+              onTouchCancel={handleJoyEnd}
+              className={`pointer-events-auto absolute bottom-6 ${
+                isLeftHanded ? 'right-5' : 'left-5'
+              } h-28 w-28 rounded-full border border-cyan-400/30 bg-slate-900/70 shadow-lg flex items-center justify-center touch-none`}
+            >
+              <div
+                className="h-11 w-11 rounded-full bg-cyan-400/90 shadow-md transition-transform duration-75"
+                style={{
+                  transform: joyKnob
+                    ? `translate(${joyKnob.x}px, ${joyKnob.y}px)`
+                    : 'translate(0px, 0px)',
+                }}
+              />
+            </div>
+          )}
 
           {/* Action Buttons: Boost & Ability */}
           <div

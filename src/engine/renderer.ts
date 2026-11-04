@@ -1,6 +1,7 @@
 import { getSnakeSpec } from '@/data/snakes';
 import {
   ArenaMapSpec,
+  ControlMode,
   HazardZone,
   Orb,
   Point2D,
@@ -28,6 +29,7 @@ export interface RenderOptions {
   wigglingFood?: boolean;
   mapOnTop?: boolean;
   lookAhead?: boolean;
+  controlMode?: ControlMode;
 }
 
 export function drawSnakeSegments(
@@ -47,6 +49,7 @@ export function drawSnakeSegments(
     showPlayerNames?: boolean;
     fadeMyName?: boolean;
     bestGraphics?: boolean;
+    showArrowGuide?: boolean;
   }
 ): void {
   if (segments.length === 0) return;
@@ -227,6 +230,26 @@ export function drawSnakeSegments(
     ctx.restore();
   }
 
+  // Arrow mode guide arrow: subtle, elegant glowing arrow floating ahead of snake head
+  if (options?.isSelf && options?.showArrowGuide) {
+    ctx.save();
+    ctx.translate(head.x, head.y);
+    ctx.rotate(angle);
+    const arrowDist = radius + 26;
+    ctx.translate(arrowDist, 0);
+    ctx.fillStyle = '#34d399';
+    ctx.shadowColor = '#10b981';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(12, 0);
+    ctx.lineTo(-6, -6);
+    ctx.lineTo(-2, 0);
+    ctx.lineTo(-6, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   ctx.restore();
 }
 
@@ -234,13 +257,13 @@ export class ArenaRenderer {
   private particles: Particle[] = [];
   private camX = 0;
   private camY = 0;
-  private camZoom = 1;
+  private camZoom = 0.67;
   private initializedCam = false;
 
   public resetCamera(x = 0, y = 0): void {
     this.camX = x;
     this.camY = y;
-    this.camZoom = 1;
+    this.camZoom = 0.67;
     this.initializedCam = false;
     this.particles = [];
   }
@@ -314,12 +337,12 @@ export class ArenaRenderer {
         this.camY += (targetCamY - this.camY) * lerp;
       }
 
-      // Progressive camera zoom: as snake grows bigger and longer, map zooms out smoothly to give a clear wide view
-      const scoreZoom = 1.0 / Math.pow(1 + Math.sqrt(me.score) * 0.026, 0.58);
-      const sizeZoom = Math.max(0.34, scoreZoom);
-      const wideBonus = timeMs < me.wideViewUntil ? 0.78 : 1;
-      const mobileFit = width < 768 ? 0.90 : 1;
-      const desiredZoom = sizeZoom * wideBonus * mobileFit;
+      // Tactical field of view: 1.5x wider base view (0.67) so players detect rivals from afar
+      const baseZoom = 0.67;
+      const scoreZoom = baseZoom / Math.pow(1 + Math.sqrt(me.score) * 0.022, 0.55);
+      const sizeZoom = Math.max(0.24, scoreZoom);
+      const wideBonus = timeMs < me.wideViewUntil ? 0.8 : 1;
+      const desiredZoom = sizeZoom * wideBonus;
       this.camZoom += (desiredZoom - this.camZoom) * Math.min(1, dtSec * 3.5);
     }
 
@@ -375,6 +398,9 @@ export class ArenaRenderer {
         showPlayerNames: renderOptions?.showPlayerNames ?? true,
         fadeMyName: renderOptions?.fadeMyName ?? true,
         bestGraphics: renderOptions?.bestGraphics ?? true,
+        showArrowGuide:
+          s.id === myId &&
+          (renderOptions?.controlMode === 'arrow' || !renderOptions?.controlMode),
       });
     }
 

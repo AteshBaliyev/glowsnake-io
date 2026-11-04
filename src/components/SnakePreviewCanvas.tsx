@@ -30,28 +30,32 @@ export const SnakePreviewCanvas: React.FC<SnakePreviewCanvasProps> = ({
     canvas.width = width * dpr;
     canvas.height = height * dpr;
 
-    const segCount = compact ? 8 : 15;
-    const segRadius = compact ? 7.5 : 11.5;
-    const spacing = segRadius * 0.78;
+    // Dynamically proportion snake so head and tail ALWAYS fit with generous padding
+    const segCount = compact ? 8 : 12;
+    const segRadius = Math.min(10, Math.max(6, height * 0.22));
+    const maxSpacing = (width - segRadius * 4) / (segCount - 1);
+    const spacing = Math.min(segRadius * 0.85, maxSpacing);
+    const totalSpan = (segCount - 1) * spacing;
 
     const render = (now: number) => {
       ctx.save();
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, width, height);
 
-      const t = now * 0.0038;
-      const headX = width * (compact ? 0.72 : 0.75);
+      const t = now * 0.0035;
+      // Head centered toward right, tail stays inside with at least (segRadius + 4)px left margin
+      const headX = (width + totalSpan) * 0.5 - segRadius * 0.2;
       const centerY = height * 0.5;
-      const waveAmp = compact ? 7 : 13;
+      const waveAmp = Math.min(height * 0.18, 8);
 
       const segments: Point2D[] = [];
       for (let i = 0; i < segCount; i++) {
         const sx = headX - i * spacing;
-        const sy = centerY + Math.sin(t - i * 0.42) * waveAmp * (1 - i * 0.015);
+        const sy = centerY + Math.sin(t - i * 0.45) * waveAmp * (1 - i * 0.02);
         segments.push({ x: sx, y: sy });
       }
 
-      const headSlope = Math.cos(t) * (waveAmp * 0.045);
+      const headSlope = Math.cos(t) * (waveAmp * 0.05);
       const headAngle = Math.atan2(headSlope, 1);
 
       drawSnakeSegments(ctx, snake, segments, segRadius, headAngle, now);
@@ -68,7 +72,7 @@ export const SnakePreviewCanvas: React.FC<SnakePreviewCanvasProps> = ({
     <canvas
       ref={canvasRef}
       style={{ width: `${width}px`, height: `${height}px` }}
-      className="block select-none pointer-events-none"
+      className="block select-none pointer-events-none mx-auto"
     />
   );
 };
