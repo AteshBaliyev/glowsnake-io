@@ -185,8 +185,14 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
   return (
     <div
-      className="relative min-h-screen w-full flex flex-col justify-between px-3.5 py-2 sm:px-6 sm:py-5 select-none text-slate-100 overflow-y-auto"
-      style={{ backgroundColor: selectedMap.bgColor }}
+      className="relative h-screen h-[100dvh] w-full flex flex-col justify-between select-none text-slate-100 overflow-y-auto custom-scrollbar"
+      style={{
+        backgroundColor: selectedMap.bgColor,
+        paddingLeft: 'max(14px, env(safe-area-inset-left, 14px))',
+        paddingRight: 'max(14px, env(safe-area-inset-right, 14px))',
+        paddingTop: 'max(6px, env(safe-area-inset-top, 6px))',
+        paddingBottom: 'max(6px, env(safe-area-inset-bottom, 6px))',
+      }}
     >
       {/* Subtle Clean Background Grid */}
       <div
@@ -198,11 +204,11 @@ export const StartMenu: React.FC<StartMenuProps> = ({
       />
 
       {/* TOP BAR: Achievements & Settings on Top-Right */}
-      <header className="relative z-10 flex items-center justify-end gap-2 w-full pt-0.5">
+      <header className="relative z-10 flex items-center justify-end gap-2 w-full pt-0.5 shrink-0">
         <button
           type="button"
           onClick={openAchievementsModal}
-          className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium text-slate-200 transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-2.5 py-1 text-xs sm:text-sm font-medium text-slate-200 transition cursor-pointer"
         >
           <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-400" />
           <span>{t.achievements}</span>
@@ -222,7 +228,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
             soundEngine.playClick();
             setActiveModal('settings');
           }}
-          className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium text-slate-200 transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-2.5 py-1 text-xs sm:text-sm font-medium text-slate-200 transition cursor-pointer"
         >
           <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-300" />
           <span>{t.settings}</span>
@@ -230,16 +236,16 @@ export const StartMenu: React.FC<StartMenuProps> = ({
       </header>
 
       {/* CENTER: Title, Nickname, Online/Offline, Play */}
-      <main className="relative z-10 my-auto mx-auto w-full max-w-xs sm:max-w-sm flex flex-col items-center text-center py-1 sm:py-4">
+      <main className="relative z-10 my-auto mx-auto w-full max-w-[270px] sm:max-w-sm flex flex-col items-center text-center py-0.5 shrink-0">
         <div className="mb-0.5">
-          <SnakePreviewCanvas snake={selectedSnake} width={180} height={52} />
+          <SnakePreviewCanvas snake={selectedSnake} width={150} height={42} />
         </div>
 
-        <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white mb-2 sm:mb-4">
+        <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white mb-1 sm:mb-2">
           GlowSnake.io
         </h1>
 
-        <form onSubmit={handlePlay} className="w-full space-y-2 sm:space-y-3">
+        <form onSubmit={handlePlay} className="w-full space-y-1 sm:space-y-2">
           {/* Nickname */}
           <div>
             <input
@@ -251,26 +257,26 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                 if (e.target.value.trim()) setNameError(false);
               }}
               placeholder={t.nicknamePlaceholder}
-              className={`w-full rounded-lg sm:rounded-xl bg-slate-900/90 border px-3.5 py-2 sm:py-3 text-center text-sm sm:text-base font-medium text-white placeholder-slate-500 outline-none transition ${
+              className={`w-full rounded-lg sm:rounded-xl bg-slate-900/90 border px-3 py-1.5 sm:py-2 text-center text-xs sm:text-sm font-medium text-white placeholder-slate-500 outline-none transition ${
                 nameError
                   ? 'border-red-500'
                   : 'border-white/15 focus:border-white/40'
               }`}
             />
             {nameError && (
-              <p className="mt-1 text-xs text-red-400">{t.enterNameWarning}</p>
+              <p className="mt-0.5 text-[10px] text-red-400">{t.enterNameWarning}</p>
             )}
           </div>
 
           {/* Offline / Online Switch */}
-          <div className="grid grid-cols-2 gap-1 rounded-lg sm:rounded-xl bg-slate-900/90 border border-white/10 p-1">
+          <div className="grid grid-cols-2 gap-1 rounded-lg sm:rounded-xl bg-slate-900/90 border border-white/10 p-0.5">
             <button
               type="button"
               onClick={() => {
                 soundEngine.playClick();
                 onUpdateProfile({ preferredMode: 'offline' });
               }}
-              className={`rounded-md sm:rounded-lg py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition cursor-pointer ${
+              className={`rounded-md sm:rounded-lg py-1 sm:py-1.5 text-xs font-semibold transition cursor-pointer ${
                 profile.preferredMode === 'offline'
                   ? 'bg-slate-700 text-white'
                   : 'text-slate-400 hover:text-slate-200'
@@ -285,7 +291,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                 setNetworkError(null);
                 onUpdateProfile({ preferredMode: 'online' });
               }}
-              className={`rounded-md sm:rounded-lg py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition cursor-pointer ${
+              className={`rounded-md sm:rounded-lg py-1 sm:py-1.5 text-xs font-semibold transition cursor-pointer ${
                 profile.preferredMode === 'online'
                   ? 'bg-slate-700 text-white'
                   : 'text-slate-400 hover:text-slate-200'
@@ -298,8 +304,8 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
           {/* Network Error Toast for Online Mode without Internet */}
           {networkError && (
-            <div className="flex items-center gap-2 rounded-lg bg-red-500/15 border border-red-500/30 p-2 text-xs text-red-300 text-left animate-shake">
-              <WifiOff className="h-4 w-4 text-red-400 shrink-0" />
+            <div className="flex items-center gap-1.5 rounded-lg bg-red-500/15 border border-red-500/30 p-1.5 text-[11px] text-red-300 text-left animate-shake">
+              <WifiOff className="h-3.5 w-3.5 text-red-400 shrink-0" />
               <span>{networkError}</span>
             </div>
           )}
@@ -307,44 +313,44 @@ export const StartMenu: React.FC<StartMenuProps> = ({
           {/* Play Button */}
           <button
             type="submit"
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] px-4 py-2.5 sm:py-3.5 text-sm sm:text-base font-bold tracking-wide text-slate-950 transition cursor-pointer shadow-lg shadow-emerald-500/20"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold tracking-wide text-slate-950 transition cursor-pointer shadow-lg shadow-emerald-500/20"
           >
-            <Play className="h-4 w-4 sm:h-5 sm:w-5 fill-slate-950" />
+            <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-slate-950" />
             <span>{t.play}</span>
           </button>
         </form>
       </main>
 
       {/* BOTTOM CORNERS: Left = High Score & Level | Right = Snakes & Themes */}
-      <div className="relative z-10 w-full flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-3">
+      <div className="relative z-10 w-full flex items-end justify-between gap-2 shrink-0">
         {/* Left Side: Record & Level */}
-        <div className="rounded-2xl bg-slate-900/90 border border-white/10 px-4 py-3 min-w-[220px]">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-amber-400 shrink-0" />
-              <span className="text-xs text-slate-400">{t.highScore}:</span>
-              <strong className="text-base font-bold text-white tabular-nums">
+        <div className="rounded-xl bg-slate-900/90 border border-white/10 px-3 py-1.5 min-w-[180px] sm:min-w-[210px]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <span className="text-[11px] text-slate-400">{t.highScore}:</span>
+              <strong className="text-xs sm:text-sm font-bold text-white tabular-nums">
                 {profile.highScore}
               </strong>
             </div>
 
             {profile.lastScore > 0 && (
-              <span className="text-xs text-slate-500 tabular-nums">
+              <span className="text-[10px] text-slate-500 tabular-nums">
                 {t.lastScore}: {profile.lastScore}
               </span>
             )}
           </div>
 
-          <div className="mt-2">
-            <div className="flex items-center justify-between text-xs mb-1">
+          <div className="mt-1">
+            <div className="flex items-center justify-between text-[10px] mb-0.5">
               <span className="font-semibold text-slate-300">
                 {t.level} {levelInfo.level}
               </span>
-              <span className="text-[11px] text-slate-500 tabular-nums">
+              <span className="text-[10px] text-slate-500 tabular-nums">
                 {levelInfo.currentLevelXp} / {levelInfo.neededForNext} XP
               </span>
             </div>
-            <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+            <div className="h-1 w-full rounded-full bg-slate-800 overflow-hidden">
               <div
                 className="h-full rounded-full bg-emerald-500 transition-all duration-300"
                 style={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
@@ -354,18 +360,18 @@ export const StartMenu: React.FC<StartMenuProps> = ({
         </div>
 
         {/* Right Side: Snakes & Themes Buttons */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={openSnakesModal}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800/90 border border-white/10 px-4 py-3.5 text-sm font-semibold text-white transition cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-white/10 px-3 py-2 text-xs sm:text-sm font-semibold text-white transition cursor-pointer"
           >
             <span
-              className="h-3.5 w-3.5 rounded-full shrink-0 border border-white/20"
+              className="h-3 w-3 rounded-full shrink-0 border border-white/20"
               style={{ backgroundColor: selectedSnake.primaryColor }}
             />
             <span>{t.snakes}</span>
-            <span className="text-xs text-slate-400 font-normal tabular-nums">
+            <span className="text-[10px] text-slate-400 font-normal tabular-nums">
               ({unlockedCount}/{SNAKE_TYPES.length})
             </span>
           </button>
@@ -376,16 +382,16 @@ export const StartMenu: React.FC<StartMenuProps> = ({
               soundEngine.playClick();
               setActiveModal('themes');
             }}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800/90 border border-white/10 px-4 py-3.5 text-sm font-semibold text-white transition cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-white/10 px-3 py-2 text-xs sm:text-sm font-semibold text-white transition cursor-pointer"
           >
-            <Palette className="h-4 w-4 text-slate-300 shrink-0" />
+            <Palette className="h-3.5 w-3.5 text-slate-300 shrink-0" />
             <span>{t.themes}</span>
           </button>
         </div>
       </div>
 
       {/* Subtle Author Credit at Very Bottom */}
-      <footer className="relative z-10 mt-3 text-center text-[11px] text-slate-500">
+      <footer className="relative z-10 pt-0.5 text-center text-[10px] text-slate-500 shrink-0">
         {t.authorCredit}
       </footer>
 
