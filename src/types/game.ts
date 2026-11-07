@@ -49,18 +49,28 @@ export type AbilityId =
   | 'chronos_stop'
   | 'soul_scythe'
   | 'phoenix_rebirth'
-  // Divine (32-35)
+  // Divine & Cosmic Apex (32-40)
   | 'supernova_collapse'
   | 'seraph_grace'
   | 'chimera_barrage'
-  | 'sovereign_dominion';
+  | 'sovereign_dominion'
+  | 'void_singularity'
+  | 'plasma_storm'
+  | 'leviathan_crush'
+  | 'celestial_ascension'
+  | 'omega_apocalypse';
 
 export type MapId =
   | 'cyberpunk-city'
   | 'neon-space'
   | 'dark-forest'
   | 'lava-arena'
-  | 'cryo-matrix';
+  | 'cryo-matrix'
+  | 'royal-violet'
+  | 'golden-desert'
+  | 'abyss-ocean';
+
+export type ArenaPatternStyle = 'grid' | 'hex' | 'stars' | 'diamond';
 
 export type LocalizedText = Record<LanguageCode, string>;
 
@@ -88,17 +98,23 @@ export interface SnakeTypeSpec {
   speedStat: number;
   turnStat: number;
   controlStat: number;
+  powerRating: number;
+  scoreMultiplier: number;
+  passiveMagnetBonus: number;
+  boostEfficiency: number;
   ability: SnakeAbilitySpec;
 }
 
 export interface ArenaMapSpec {
   id: MapId;
   name: LocalizedText;
-  offlineHalfSize: number; // Sized for 80-150 snakes without crowding
-  onlineHalfSize: number;  // Sized for 50-60 snakes without crowding
+  offlineHalfSize: number; // 3x massive arena for ~300 snakes
+  onlineHalfSize: number;  // 3x massive arena for ~300 snakes
   bgColor: string;
+  bgAccentColor: string;
   gridColor: string;
   borderColor: string;
+  patternStyle: ArenaPatternStyle;
   orbPalette: string[];
 }
 
@@ -281,6 +297,9 @@ export interface PlayerProfile extends PlayerSettings {
   gamesPlayed: number;
   unlockedAchievements: string[];
   unseenAchievements: string[];
+  unlockedSnakeIds: string[];
+  lastFreeSpinDate: string;
+  totalWheelSpins: number;
 }
 
 export interface RoomSummary {

@@ -26,10 +26,10 @@ export const RARITY_LABELS: Record<RarityTier, Record<LanguageCode, string>> = {
     ru: 'Редкий',
   },
   epic: {
-    en: 'Epic',
-    az: 'Epik',
-    tr: 'Epik',
-    ru: 'Эпический',
+    en: 'Mystic',
+    az: 'Gizəmli',
+    tr: 'Gizemli',
+    ru: 'Таинственный',
   },
   legendary: {
     en: 'Legendary',
@@ -136,6 +136,23 @@ export interface UITranslations {
   adLoading: string;
   adNotReady: string;
   adRewardSuccess: string;
+  luckyWheel: string;
+  freeBadge: string;
+  wheelSubtitle: string;
+  spinFreeDaily: string;
+  spinAgainAd: string;
+  spinning: string;
+  dropChances: string;
+  youWonSkin: string;
+  bonusXpGranted: string;
+  levelsTitle: string;
+  levelsSubtitle: string;
+  avgPlayerPercent: string;
+  topPlayersBadge: string;
+  currentBadge: string;
+  powerStat: string;
+  scoreMultStat: string;
+  magnetStat: string;
 }
 
 export const UI_TEXT: Record<LanguageCode, UITranslations> = {
@@ -225,6 +242,23 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     adLoading: 'Loading Ad...',
     adNotReady: 'Ad is loading, please try again in a moment.',
     adRewardSuccess: 'Reward granted! +150 XP',
+    luckyWheel: 'Lucky Wheel',
+    freeBadge: 'FREE',
+    wheelSubtitle: '1 free spin every day! Win a random Snake Skin!',
+    spinFreeDaily: 'Free Daily Spin (1x)',
+    spinAgainAd: 'Watch Ad & Spin Again',
+    spinning: 'Spinning...',
+    dropChances: 'Drop Chances',
+    youWonSkin: 'New Snake Skin Unlocked!',
+    bonusXpGranted: 'All skins in tier owned — +350 Bonus XP!',
+    levelsTitle: 'Player Levels (1 – 100)',
+    levelsSubtitle: 'Global player distribution & level rewards',
+    avgPlayerPercent: 'Avg. players at this level',
+    topPlayersBadge: 'You are in the Top',
+    currentBadge: 'YOU',
+    powerStat: 'Power',
+    scoreMultStat: 'Score Bonus',
+    magnetStat: 'Magnet',
   },
   az: {
     nicknamePlaceholder: 'Ləqəb daxil edin...',
@@ -312,6 +346,23 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     adLoading: 'Reklam açılır...',
     adNotReady: 'Reklam yüklənir, zəhmət olmasa bir neçə saniyə sonra yenidən cəhd edin.',
     adRewardSuccess: 'Mükafat qazanıldı! +150 XP',
+    luckyWheel: 'Şans Çarxı',
+    freeBadge: 'PULSUZ',
+    wheelSubtitle: 'Gündə 1 dəfə pulsuz fırlat və təsadüfi İlan Skini qazan!',
+    spinFreeDaily: 'Gündəlik Pulsuz Fırlat (1x)',
+    spinAgainAd: 'Reklama Bax & Təkrar Fırlat',
+    spinning: 'Fırlanır...',
+    dropChances: 'Düşmə Faizləri',
+    youWonSkin: 'Yeni İlan Skini Qazandınız!',
+    bonusXpGranted: 'Bu dərəcədəki ilanlar açıqdır — +350 Bonus XP!',
+    levelsTitle: 'Səviyyələr (1 – 100)',
+    levelsSubtitle: 'Qlobal oyunçu faizləri və səviyyə üzrə açılan ilanlar',
+    avgPlayerPercent: 'Ortalama oyunçu faizi',
+    topPlayersBadge: 'Dünya üzrə ən yaxşı Top',
+    currentBadge: 'SƏN',
+    powerStat: 'Güc',
+    scoreMultStat: 'Xal Çarpanı',
+    magnetStat: 'Maqnit',
   },
   tr: {
     nicknamePlaceholder: 'Takma ad girin...',
@@ -399,6 +450,23 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     adLoading: 'Reklam açılıyor...',
     adNotReady: 'Reklam yükleniyor, lütfen birkaç saniye sonra tekrar deneyin.',
     adRewardSuccess: 'Ödül kazanıldı! +150 XP',
+    luckyWheel: 'Şans Çarkı',
+    freeBadge: 'ÜCRETSİZ',
+    wheelSubtitle: 'Günde 1 kez ücretsiz çevir, rastgele Yılan Kostümü kazan!',
+    spinFreeDaily: 'Günlük Ücretsiz Çevir (1x)',
+    spinAgainAd: 'Reklam İzle & Tekrar Çevir',
+    spinning: 'Dönüyor...',
+    dropChances: 'Düşme Oranları',
+    youWonSkin: 'Yeni Yılan Kostümü Kazandın!',
+    bonusXpGranted: 'Bu seviyedeki kostümler açık — +350 Bonus XP!',
+    levelsTitle: 'Seviyeler (1 – 100)',
+    levelsSubtitle: 'Küresel oyuncu yüzdeleri ve seviye ödülleri',
+    avgPlayerPercent: 'Ortalama oyuncu yüzdesi',
+    topPlayersBadge: 'Dünya genelinde en iyi Top',
+    currentBadge: 'SEN',
+    powerStat: 'Güç',
+    scoreMultStat: 'Skor Çarpanı',
+    magnetStat: 'Mıknatıs',
   },
   ru: {
     nicknamePlaceholder: 'Введите никнейм...',
@@ -486,5 +554,22 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     adLoading: 'Загрузка рекламы...',
     adNotReady: 'Реклама загружается, попробуйте через пару секунд.',
     adRewardSuccess: 'Награда получена! +150 XP',
+    luckyWheel: 'Колесо Фортуны',
+    freeBadge: 'БЕСПЛАТНО',
+    wheelSubtitle: '1 бесплатное вращение каждый день! Выиграйте случайную Змею!',
+    spinFreeDaily: 'Бесплатное вращение (1x)',
+    spinAgainAd: 'Реклама и крутить снова',
+    spinning: 'Вращение...',
+    dropChances: 'Шансы выпадения',
+    youWonSkin: 'Открыт новый скин змеи!',
+    bonusXpGranted: 'Все скины открыты — +350 бонусных XP!',
+    levelsTitle: 'Уровни (1 – 100)',
+    levelsSubtitle: 'Процент игроков в мире и награды за уровни',
+    avgPlayerPercent: 'Средний % игроков',
+    topPlayersBadge: 'Вы входите в Топ',
+    currentBadge: 'ВЫ',
+    powerStat: 'Мощь',
+    scoreMultStat: 'Бонус очков',
+    magnetStat: 'Магнит',
   },
 };

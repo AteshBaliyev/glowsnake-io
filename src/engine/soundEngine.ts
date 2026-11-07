@@ -118,7 +118,12 @@ class CleanSoundEngine {
     const highTone =
       abilityId === 'sovereign_dominion' ||
       abilityId === 'supernova_collapse' ||
-      abilityId === 'dragon_flight';
+      abilityId === 'dragon_flight' ||
+      abilityId === 'void_singularity' ||
+      abilityId === 'plasma_storm' ||
+      abilityId === 'leviathan_crush' ||
+      abilityId === 'celestial_ascension' ||
+      abilityId === 'omega_apocalypse';
     osc1.frequency.setValueAtTime(highTone ? 340 : 250, now);
     osc1.frequency.exponentialRampToValueAtTime(highTone ? 1100 : 780, now + 0.22);
     osc2.frequency.setValueAtTime(highTone ? 510 : 380, now);

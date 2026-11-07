@@ -1,16 +1,26 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { LuckyWheelModal } from '@/components/LuckyWheelModal';
 import { SnakePreviewCanvas } from '@/components/SnakePreviewCanvas';
 import { ACHIEVEMENTS } from '@/data/achievements';
 import { LANGUAGE_OPTIONS, RARITY_LABELS, UI_TEXT } from '@/data/i18n';
 import { ARENA_MAPS, getMapSpec } from '@/data/maps';
 import { getSnakeSpec, SNAKE_TYPES } from '@/data/snakes';
 import { soundEngine } from '@/engine/soundEngine';
-import { getLevelInfo, isSnakeUnlocked } from '@/engine/storage';
+import {
+  canSpinFreeToday,
+  getLevelInfo,
+  getLevelPlayerShare,
+  getTopPlayersPercentile,
+  isSnakeUnlocked,
+  MAX_PLAYER_LEVEL,
+  xpForLevel,
+} from '@/engine/storage';
 import { MultiplayerClient } from '@/network/multiplayerClient';
 import { appodealService } from '@/services/appodealService';
 import {
+  ArenaPatternStyle,
   LanguageCode,
   MapId,
   PlayerProfile,
@@ -21,8 +31,10 @@ import {
   ArrowRight,
   Award,
   Check,
+  ChevronRight,
   Clapperboard,
   Gamepad2,
+  Gift,
   Globe,
   Loader2,
   Lock,
@@ -36,10 +48,11 @@ import {
   Smartphone,
   Sparkles,
   Trophy,
+  Users,
   Volume2,
-  VolumeX,
   WifiOff,
   X,
+  Zap,
 } from 'lucide-react';
 
 interface StartMenuProps {
@@ -78,6 +91,39 @@ const RARITY_STYLES: Record<
   },
 };
 
+function getMenuPatternOverlayStyle(
+  pattern: ArenaPatternStyle,
+  gridColor: string,
+  orbPalette: string[]
+): React.CSSProperties {
+  if (pattern === 'diamond') {
+    return {
+      backgroundImage: `linear-gradient(45deg, ${gridColor} 1px, transparent 1px), linear-gradient(-45deg, ${gridColor} 1px, transparent 1px)`,
+      backgroundSize: '46px 46px',
+    };
+  }
+  if (pattern === 'hex') {
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='56' height='96' viewBox='0 0 56 96'><path d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100' fill='none' stroke='${gridColor}' stroke-width='1.35'/><path d='M28 0L28 34L0 50L0 84L28 100L56 84L56 50L28 34' fill='none' stroke='${gridColor}' stroke-width='1.1'/></svg>`;
+    return {
+      backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`,
+      backgroundSize: '56px 96px',
+    };
+  }
+  if (pattern === 'stars') {
+    const c1 = orbPalette[0] || '#a855f7';
+    const c2 = orbPalette[1] || '#38bdf8';
+    const c3 = orbPalette[2] || '#facc15';
+    return {
+      backgroundImage: `radial-gradient(2px 2px at 22px 32px, ${c1}cc, transparent), radial-gradient(2.2px 2.2px at 88px 74px, ${c2}cc, transparent), radial-gradient(1.8px 1.8px at 142px 28px, ${c3}cc, transparent), radial-gradient(1.5px 1.5px at 54px 128px, #ffffffaa, transparent), linear-gradient(to right, ${gridColor} 1px, transparent 1px), linear-gradient(to bottom, ${gridColor} 1px, transparent 1px)`,
+      backgroundSize: '170px 170px, 170px 170px, 170px 170px, 170px 170px, 64px 64px, 64px 64px',
+    };
+  }
+  return {
+    backgroundImage: `linear-gradient(to right, ${gridColor} 1px, transparent 1px), linear-gradient(to bottom, ${gridColor} 1px, transparent 1px)`,
+    backgroundSize: '48px 48px',
+  };
+}
+
 export const StartMenu: React.FC<StartMenuProps> = ({
   profile,
   onUpdateProfile,
@@ -89,9 +135,16 @@ export const StartMenu: React.FC<StartMenuProps> = ({
   const [nameError, setNameError] = useState(false);
   const [networkError, setNetworkError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [simulatedOnlineCount, setSimulatedOnlineCount] = useState(55);
+  const [simulatedOnlineCount, setSimulatedOnlineCount] = useState(296);
   const [activeModal, setActiveModal] = useState<
-    'none' | 'settings' | 'snakes' | 'themes' | 'achievements' | 'privacy'
+    | 'none'
+    | 'settings'
+    | 'snakes'
+    | 'themes'
+    | 'achievements'
+    | 'privacy'
+    | 'wheel'
+    | 'levels'
   >('none');
   const [showAdvancedNetwork, setShowAdvancedNetwork] = useState(false);
   const [inspectedSnakeId, setInspectedSnakeId] = useState<string>(
@@ -101,6 +154,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [adToast, setAdToast] = useState<string | null>(null);
+  const currentLevelRowRef = useRef<HTMLDivElement | null>(null);
 
   const handleWatchAdForXp = async () => {
     soundEngine.playClick();
@@ -129,18 +183,31 @@ export const StartMenu: React.FC<StartMenuProps> = ({
   useEffect(() => {
     const timer = setInterval(() => {
       setSimulatedOnlineCount((c) => {
-        const delta = Math.random() < 0.5 ? -1 : 1;
-        return Math.max(52, Math.min(58, c + delta));
+        const delta = Math.random() < 0.5 ? -2 : 2;
+        return Math.max(288, Math.min(306, c + delta));
       });
-    }, 4000);
+    }, 3500);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (activeModal === 'levels') {
+      const tId = setTimeout(() => {
+        currentLevelRowRef.current?.scrollIntoView({
+          block: 'center',
+          behavior: 'smooth',
+        });
+      }, 80);
+      return () => clearTimeout(tId);
+    }
+  }, [activeModal]);
 
   const levelInfo = getLevelInfo(profile.totalXp);
   const selectedSnake = getSnakeSpec(profile.selectedSnakeId);
   const inspectedSnake = getSnakeSpec(inspectedSnakeId);
   const inspectedUnlocked = isSnakeUnlocked(profile, inspectedSnake);
   const selectedMap = getMapSpec(profile.selectedMapId);
+  const hasFreeDailySpin = canSpinFreeToday(profile);
 
   const unlockedCount = SNAKE_TYPES.filter((s) =>
     isSnakeUnlocked(profile, s)
@@ -163,8 +230,6 @@ export const StartMenu: React.FC<StartMenuProps> = ({
       lobby.disconnect();
     };
   }, [profile.preferredMode, profile.customServerUrl]);
-
-  const totalOnline = rooms.reduce((acc, r) => acc + r.activePlayers, 0);
 
   const openAchievementsModal = () => {
     soundEngine.playClick();
@@ -213,54 +278,87 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
   return (
     <div
-      className="relative h-screen h-[100dvh] w-full flex flex-col justify-between select-none text-slate-100 overflow-y-auto custom-scrollbar"
+      className="relative h-screen h-[100dvh] w-full flex flex-col justify-between select-none text-slate-100 overflow-y-auto custom-scrollbar transition-colors duration-300"
       style={{
         backgroundColor: selectedMap.bgColor,
+        backgroundImage: `radial-gradient(circle at 50% 45%, ${selectedMap.bgAccentColor} 0%, ${selectedMap.bgColor} 78%)`,
         paddingLeft: 'max(14px, env(safe-area-inset-left, 14px))',
         paddingRight: 'max(14px, env(safe-area-inset-right, 14px))',
         paddingTop: 'max(6px, env(safe-area-inset-top, 6px))',
         paddingBottom: 'max(6px, env(safe-area-inset-bottom, 6px))',
       }}
     >
-      {/* Subtle Clean Background Grid */}
+      {/* Distinct Theme Arena Pattern Overlay (Grid / Hex / Diamond / Stars) */}
       <div
-        className="pointer-events-none fixed inset-0"
+        className="pointer-events-none fixed inset-0 transition-all duration-300"
+        style={getMenuPatternOverlayStyle(
+          selectedMap.patternStyle,
+          selectedMap.gridColor,
+          selectedMap.orbPalette
+        )}
+      />
+
+      {/* Subtle Arena Border Vignette matching selected Theme */}
+      <div
+        className="pointer-events-none fixed inset-0 transition-all duration-300"
         style={{
-          backgroundImage: `linear-gradient(to right, ${selectedMap.gridColor} 1px, transparent 1px), linear-gradient(to bottom, ${selectedMap.gridColor} 1px, transparent 1px)`,
-          backgroundSize: '48px 48px',
+          boxShadow: `inset 0 0 65px ${selectedMap.borderColor}26`,
         }}
       />
 
-      {/* TOP BAR: Achievements & Settings on Top-Right */}
-      <header className="relative z-10 flex items-center justify-end gap-2 w-full pt-0.5 shrink-0">
-        <button
-          type="button"
-          onClick={openAchievementsModal}
-          className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-2.5 py-1 text-xs sm:text-sm font-medium text-slate-200 transition cursor-pointer"
-        >
-          <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-400" />
-          <span>{t.achievements}</span>
-          <span className="text-[11px] sm:text-xs text-slate-400 tabular-nums">
-            ({profile.unlockedAchievements.length}/{ACHIEVEMENTS.length})
-          </span>
-          {profile.unseenAchievements.length > 0 && (
-            <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-extrabold text-slate-950 leading-none">
-              {t.newBadge}
-            </span>
-          )}
-        </button>
-
+      {/* TOP BAR: Left = Daily Lucky Wheel (directly above Level card, parallel to Achievements) | Right = Achievements & Settings */}
+      <header className="relative z-10 flex items-center justify-between gap-2 w-full pt-0.5 shrink-0">
+        {/* Top-Left Corner: Daily Lucky Wheel */}
         <button
           type="button"
           onClick={() => {
             soundEngine.playClick();
-            setActiveModal('settings');
+            setActiveModal('wheel');
           }}
-          className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-2.5 py-1 text-xs sm:text-sm font-medium text-slate-200 transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-amber-500/20 via-purple-500/20 to-emerald-500/20 hover:from-amber-500/30 hover:to-emerald-500/30 border border-amber-400/45 px-2.5 py-1 text-xs sm:text-sm font-bold text-amber-200 transition cursor-pointer shadow-[0_0_14px_rgba(251,191,36,0.18)] active:scale-[0.98]"
         >
-          <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-300" />
-          <span>{t.settings}</span>
+          <span className="relative flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-500 text-slate-950 shadow-sm">
+            <Gift className="h-2.5 w-2.5 stroke-[2.5]" />
+          </span>
+          <span>{t.luckyWheel}</span>
+          {hasFreeDailySpin && (
+            <span className="rounded-full bg-emerald-400 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-black text-slate-950 leading-none animate-pulse">
+              {t.freeBadge}
+            </span>
+          )}
         </button>
+
+        {/* Top-Right Corner: Achievements & Settings */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={openAchievementsModal}
+            className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-2.5 py-1 text-xs sm:text-sm font-medium text-slate-200 transition cursor-pointer"
+          >
+            <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-400" />
+            <span>{t.achievements}</span>
+            <span className="text-[11px] sm:text-xs text-slate-400 tabular-nums">
+              ({profile.unlockedAchievements.length}/{ACHIEVEMENTS.length})
+            </span>
+            {profile.unseenAchievements.length > 0 && (
+              <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-extrabold text-slate-950 leading-none">
+                {t.newBadge}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              soundEngine.playClick();
+              setActiveModal('settings');
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/10 px-2.5 py-1 text-xs sm:text-sm font-medium text-slate-200 transition cursor-pointer"
+          >
+            <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-300" />
+            <span>{t.settings}</span>
+          </button>
+        </div>
       </header>
 
       {/* CENTER: Title, Nickname, Online/Offline, Play */}
@@ -349,10 +447,17 @@ export const StartMenu: React.FC<StartMenuProps> = ({
         </form>
       </main>
 
-      {/* BOTTOM CORNERS: Left = High Score & Level | Right = Snakes & Themes */}
+      {/* BOTTOM CORNERS: Left = Clickable High Score & Level Card | Right = Snakes & Themes */}
       <div className="relative z-10 w-full flex items-end justify-between gap-2 shrink-0">
-        {/* Left Side: Record & Level */}
-        <div className="rounded-xl bg-slate-900/90 border border-white/10 px-3 py-1.5 min-w-[180px] sm:min-w-[210px]">
+        {/* Left Side: Clickable Record & Level -> Opens Levels (1-100) Modal */}
+        <button
+          type="button"
+          onClick={() => {
+            soundEngine.playClick();
+            setActiveModal('levels');
+          }}
+          className="text-left rounded-xl bg-slate-900/90 hover:bg-slate-800/95 border border-white/10 hover:border-emerald-400/40 px-3 py-1.5 min-w-[185px] sm:min-w-[220px] transition cursor-pointer group active:scale-[0.99]"
+        >
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
@@ -370,11 +475,14 @@ export const StartMenu: React.FC<StartMenuProps> = ({
           </div>
 
           <div className="mt-1">
-            <div className="flex items-center justify-between text-[10px] mb-0.5">
-              <span className="font-semibold text-slate-300">
-                {t.level} {levelInfo.level}
+            <div className="flex items-center justify-between text-[10px] mb-0.5 gap-1.5">
+              <span className="inline-flex items-center gap-0.5 font-semibold text-emerald-300 group-hover:text-emerald-200">
+                <span>
+                  {t.level} {levelInfo.level}
+                </span>
+                <ChevronRight className="h-3 w-3 text-emerald-400 transition-transform group-hover:translate-x-0.5" />
               </span>
-              <span className="text-[10px] text-slate-500 tabular-nums">
+              <span className="text-[10px] text-slate-400 tabular-nums">
                 {levelInfo.currentLevelXp} / {levelInfo.neededForNext} XP
               </span>
             </div>
@@ -385,7 +493,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
               />
             </div>
           </div>
-        </div>
+        </button>
 
         {/* Right Side: Snakes & Themes Buttons */}
         <div className="flex items-center gap-1.5">
@@ -412,14 +520,14 @@ export const StartMenu: React.FC<StartMenuProps> = ({
             }}
             className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-white/10 px-3 py-2 text-xs sm:text-sm font-semibold text-white transition cursor-pointer"
           >
-            <Palette className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+            <Palette className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
             <span>{t.themes}</span>
           </button>
         </div>
       </div>
 
       {/* Subtle Author Credit at Very Bottom */}
-      <footer className="relative z-10 pt-0.5 text-center text-[10px] text-slate-500 shrink-0">
+      <footer className="relative z-10 pt-0.5 text-center text-[10px] text-slate-400/80 shrink-0">
         {t.authorCredit}
       </footer>
 
@@ -1093,7 +1201,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
         </div>
       )}
 
-      {/* ================= SNAKES MODAL (35 Snakes + Side Compact Preview for Locked & Unlocked) ================= */}
+      {/* ================= SNAKES MODAL (100 Progressive Snakes + Side Live Preview) ================= */}
       {activeModal === 'snakes' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-4">
           <div className="w-full max-w-4xl rounded-2xl bg-[#181b24] border border-white/10 p-4 sm:p-5 text-slate-100 flex flex-col max-h-[88vh]">
@@ -1137,10 +1245,10 @@ export const StartMenu: React.FC<StartMenuProps> = ({
               </div>
             )}
 
-            {/* Body: Left Grid (35 Snakes) + Right Compact Side Preview */}
+            {/* Body: Left Grid (100 Snakes) + Right Compact Side Preview */}
             <div className="flex flex-col md:flex-row gap-4 min-h-0 flex-1 overflow-hidden">
-              {/* Scrollable 35 Snakes Grid */}
-              <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5 content-start">
+              {/* Scrollable 100 Snakes Grid */}
+              <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5 content-start custom-scrollbar">
                 {SNAKE_TYPES.map((snake) => {
                   const unlocked = isSnakeUnlocked(profile, snake);
                   const isEquipped = snake.id === profile.selectedSnakeId;
@@ -1177,6 +1285,10 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                             className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold leading-none ${rStyle.badge}`}
                           >
                             {RARITY_LABELS[snake.rarity][lang]}
+                          </span>
+                          <span className="inline-flex items-center gap-0.5 rounded-md bg-amber-500/15 border border-amber-400/25 px-1.5 py-0.5 text-[10px] font-extrabold text-amber-300 leading-none tabular-nums">
+                            <Zap className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                            {snake.powerRating}
                           </span>
                         </div>
 
@@ -1239,7 +1351,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
               </div>
 
               {/* Right Side Compact Live Preview Card (Works even when snake is LOCKED!) */}
-              <div className="w-full md:w-[275px] shrink-0 rounded-xl bg-slate-900/90 border border-white/10 p-3.5 flex flex-col justify-between">
+              <div className="w-full md:w-[285px] shrink-0 rounded-xl bg-slate-900/90 border border-white/10 p-3.5 flex flex-col justify-between overflow-y-auto custom-scrollbar">
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -1256,7 +1368,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
                   {/* Compact Live Animated Snake Canvas */}
                   <div
-                    className="relative rounded-xl border border-white/10 flex items-center justify-center py-2 mb-3 overflow-hidden"
+                    className="relative rounded-xl border border-white/10 flex items-center justify-center py-2 mb-2.5 overflow-hidden"
                     style={{
                       backgroundColor: '#11141d',
                       backgroundImage:
@@ -1267,7 +1379,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                     <SnakePreviewCanvas
                       snake={inspectedSnake}
                       width={215}
-                      height={70}
+                      height={66}
                     />
                     {!inspectedUnlocked && (
                       <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-1 rounded-md bg-black/65 border border-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
@@ -1278,13 +1390,41 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                   </div>
 
                   {/* Inspected Name & Subtitle */}
-                  <div className="mb-2.5">
+                  <div className="mb-2">
                     <div className="text-base font-extrabold text-white leading-tight">
                       #{inspectedSnake.index.toString().padStart(2, '0')}{' '}
                       {inspectedSnake.name}
                     </div>
                     <div className="text-xs text-slate-400">
                       {inspectedSnake.subtitle[lang]}
+                    </div>
+                  </div>
+
+                  {/* Progressive Combat Power Stats (#1 -> #100) */}
+                  <div className="grid grid-cols-3 gap-1.5 mb-2.5">
+                    <div className="rounded-lg bg-slate-950/80 border border-amber-400/20 p-1.5 text-center">
+                      <div className="text-[9px] text-slate-400 truncate">
+                        {t.powerStat}
+                      </div>
+                      <div className="text-xs font-extrabold text-amber-300 tabular-nums">
+                        ⚡{inspectedSnake.powerRating}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-slate-950/80 border border-emerald-400/20 p-1.5 text-center">
+                      <div className="text-[9px] text-slate-400 truncate">
+                        {t.scoreMultStat}
+                      </div>
+                      <div className="text-xs font-extrabold text-emerald-300 tabular-nums">
+                        {inspectedSnake.scoreMultiplier.toFixed(2)}x
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-slate-950/80 border border-sky-400/20 p-1.5 text-center">
+                      <div className="text-[9px] text-slate-400 truncate">
+                        {t.magnetStat}
+                      </div>
+                      <div className="text-xs font-extrabold text-sky-300 tabular-nums">
+                        +{inspectedSnake.passiveMagnetBonus}px
+                      </div>
                     </div>
                   </div>
 
@@ -1358,12 +1498,17 @@ export const StartMenu: React.FC<StartMenuProps> = ({
         </div>
       )}
 
-      {/* ================= THEMES MODAL ================= */}
+      {/* ================= THEMES / BACKGROUNDS MODAL (Live Preview Behind Modal) ================= */}
       {activeModal === 'themes' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-2 sm:p-4 overflow-y-auto">
-          <div className="w-full max-w-md rounded-2xl bg-[#181b24] border border-white/10 p-3.5 sm:p-5 text-slate-100 shadow-2xl my-auto max-h-[92vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2 shrink-0">
-              <h2 className="text-sm sm:text-base font-bold text-white">{t.themes}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-[1px] p-2 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl bg-[#141722]/92 border border-white/15 p-3.5 sm:p-5 text-slate-100 shadow-2xl my-auto max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2.5 shrink-0">
+              <div className="flex items-center gap-2">
+                <Palette className="h-4 w-4 text-emerald-400" />
+                <h2 className="text-sm sm:text-base font-bold text-white">
+                  {t.themes} ({ARENA_MAPS.length})
+                </h2>
+              </div>
               <button
                 onClick={() => setActiveModal('none')}
                 className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white cursor-pointer"
@@ -1372,7 +1517,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
               </button>
             </div>
 
-            <div className="space-y-1.5 overflow-y-auto max-h-[58vh] custom-scrollbar pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto max-h-[62vh] custom-scrollbar pr-1">
               {ARENA_MAPS.map((map) => {
                 const active = map.id === profile.selectedMapId;
                 const room = rooms.find((r) => r.mapId === map.id);
@@ -1384,44 +1529,53 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       soundEngine.playClick();
                       onUpdateProfile({ selectedMapId: map.id as MapId });
                     }}
-                    className={`w-full flex items-center justify-between rounded-xl border p-2 sm:p-2.5 transition cursor-pointer ${
+                    className={`w-full flex items-center justify-between rounded-xl border p-2.5 transition cursor-pointer ${
                       active
-                        ? 'border-emerald-500 bg-emerald-500/10 text-white'
-                        : 'border-white/10 bg-slate-900/70 text-slate-200 hover:bg-slate-800'
+                        ? 'border-emerald-400 bg-emerald-500/15 text-white ring-1 ring-emerald-400/50 shadow-md'
+                        : 'border-white/10 bg-slate-900/75 text-slate-200 hover:bg-slate-800/85'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <span
-                        className="h-6 w-6 rounded-lg border border-white/15 shrink-0"
-                        style={{ backgroundColor: map.bgColor }}
-                      />
-                      <div className="text-left">
-                        <div className="text-xs sm:text-sm font-semibold">
+                        className="h-8 w-8 rounded-lg border-2 shrink-0 relative overflow-hidden shadow-inner"
+                        style={{
+                          background: `radial-gradient(circle at 35% 35%, ${map.bgAccentColor}, ${map.bgColor})`,
+                          borderColor: map.borderColor,
+                        }}
+                      >
+                        <span
+                          className="absolute inset-0 opacity-75"
+                          style={getMenuPatternOverlayStyle(
+                            map.patternStyle,
+                            map.gridColor,
+                            map.orbPalette
+                          )}
+                        />
+                      </span>
+                      <div className="text-left min-w-0">
+                        <div className="text-xs font-bold truncate">
                           {map.name[lang]}
                         </div>
+                        <div className="flex items-center gap-1 mt-1">
+                          {map.orbPalette.slice(0, 4).map((col, idx) => (
+                            <span
+                              key={idx}
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: col }}
+                            />
+                          ))}
+                        </div>
                         {profile.preferredMode === 'online' && room && (
-                          <div className="text-[10px] text-slate-400">
+                          <div className="text-[9px] text-slate-400 mt-0.5">
                             {t.players}: {room.activePlayers}
-                            {room.instanceCount > 1
-                              ? ` • ${room.instanceCount} ${t.serverRoom}`
-                              : ''}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                      {map.orbPalette.slice(0, 3).map((col, idx) => (
-                        <span
-                          key={idx}
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: col }}
-                        />
-                      ))}
-                      {active && (
-                        <Check className="h-3.5 w-3.5 text-emerald-400 ml-1" />
-                      )}
-                    </div>
+                    {active && (
+                      <Check className="h-4 w-4 text-emerald-400 shrink-0 ml-1" />
+                    )}
                   </button>
                 );
               })}
@@ -1430,12 +1584,209 @@ export const StartMenu: React.FC<StartMenuProps> = ({
             <button
               type="button"
               onClick={() => setActiveModal('none')}
-              className="mt-2.5 w-full rounded-xl bg-slate-800 hover:bg-slate-700 py-2 text-xs sm:text-sm font-semibold text-white transition cursor-pointer shrink-0"
+              className="mt-3 w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 py-2 text-xs sm:text-sm font-bold text-slate-950 transition cursor-pointer shrink-0"
+            >
+              {t.ok}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= LEVELS (1 – 100) & GLOBAL PLAYER % MODAL ================= */}
+      {activeModal === 'levels' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2.5 sm:p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-[#151824] border border-emerald-500/30 p-3.5 sm:p-5 text-slate-100 shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3 shrink-0 gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="h-9 w-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
+                  <Trophy className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm sm:text-base font-extrabold text-white truncate">
+                    {t.levelsTitle}
+                  </h2>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {t.levelsSubtitle}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveModal('none')}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white cursor-pointer shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Player Current Level & Global Percentile Banner */}
+            <div className="rounded-xl bg-gradient-to-r from-emerald-500/15 via-cyan-500/10 to-purple-500/15 border border-emerald-400/30 p-3 mb-3 shrink-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-lg bg-emerald-500 px-2 py-0.5 text-xs font-black text-slate-950">
+                    {t.level} {levelInfo.level} / {MAX_PLAYER_LEVEL}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-200 tabular-nums">
+                    {profile.totalXp.toLocaleString()} XP
+                  </span>
+                </div>
+
+                <div className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900/85 border border-cyan-400/35 px-2.5 py-1 text-[11px] font-bold text-cyan-300">
+                  <Users className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                  <span>
+                    {t.topPlayersBadge} {getTopPlayersPercentile(levelInfo.level)}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] text-slate-300 mb-1">
+                <span>
+                  {t.avgPlayerPercent}:{' '}
+                  <strong className="text-emerald-300">
+                    {getLevelPlayerShare(levelInfo.level)}%
+                  </strong>
+                </span>
+                <span className="tabular-nums text-slate-400">
+                  {levelInfo.currentLevelXp} / {levelInfo.neededForNext} XP
+                </span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-slate-900/90 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all duration-300"
+                  style={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Scrollable Levels 1 -> 100 List */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2 custom-scrollbar min-h-0">
+              {Array.from({ length: MAX_PLAYER_LEVEL }, (_, i) => i + 1).map(
+                (lvl) => {
+                  const isCurrent = lvl === levelInfo.level;
+                  const isReached = lvl <= levelInfo.level;
+                  const shareStr = getLevelPlayerShare(lvl);
+                  const shareNum = parseFloat(shareStr);
+                  const barWidth = Math.min(100, Math.max(4, shareNum * 11));
+                  const rewardSnake = SNAKE_TYPES[lvl - 1];
+                  const reqXp = xpForLevel(lvl);
+
+                  return (
+                    <div
+                      key={lvl}
+                      ref={isCurrent ? currentLevelRowRef : null}
+                      className={`rounded-xl border p-2.5 sm:p-3 transition ${
+                        isCurrent
+                          ? 'border-emerald-400 bg-emerald-500/15 ring-1 ring-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.18)]'
+                          : isReached
+                          ? 'border-white/15 bg-slate-900/80'
+                          : 'border-white/5 bg-slate-950/65 opacity-80'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`h-8 w-10 rounded-lg flex items-center justify-center text-xs font-black tabular-nums shrink-0 ${
+                              isCurrent
+                                ? 'bg-emerald-400 text-slate-950'
+                                : isReached
+                                ? 'bg-slate-800 text-emerald-300 border border-emerald-500/30'
+                                : 'bg-slate-900 text-slate-500 border border-white/5'
+                            }`}
+                          >
+                            {lvl}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs sm:text-sm font-bold text-white">
+                                {t.level} {lvl}
+                              </span>
+                              {isCurrent && (
+                                <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[9px] font-black text-slate-950 leading-none">
+                                  {t.currentBadge}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400 tabular-nums">
+                                ({reqXp.toLocaleString()} XP)
+                              </span>
+                            </div>
+
+                            {/* Average Player % at this level */}
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[11px] text-slate-300">
+                                {t.avgPlayerPercent}:{' '}
+                                <strong className="text-cyan-300 tabular-nums">
+                                  {shareStr}%
+                                </strong>
+                              </span>
+                              <div className="w-16 sm:w-24 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-cyan-400/85"
+                                  style={{ width: `${barWidth}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Snake Unlocked at This Level */}
+                        {rewardSnake && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              soundEngine.playClick();
+                              setInspectedSnakeId(rewardSnake.id);
+                              setActiveModal('snakes');
+                            }}
+                            className="inline-flex items-center gap-2 rounded-lg bg-slate-900/95 hover:bg-slate-800 border border-white/10 px-2.5 py-1.5 text-left transition cursor-pointer shrink-0"
+                          >
+                            <span
+                              className="h-3.5 w-3.5 rounded-full border border-white/25 shrink-0"
+                              style={{
+                                backgroundColor: rewardSnake.primaryColor,
+                              }}
+                            />
+                            <div className="min-w-0">
+                              <div className="text-[11px] font-bold text-white truncate max-w-[120px] sm:max-w-[155px]">
+                                #{rewardSnake.index} {rewardSnake.name}
+                              </div>
+                              <div className="flex items-center gap-1 text-[9px] text-amber-300 font-semibold">
+                                <span>
+                                  {RARITY_LABELS[rewardSnake.rarity][lang]}
+                                </span>
+                                <span>•</span>
+                                <span>⚡{rewardSnake.powerRating}</span>
+                              </div>
+                            </div>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveModal('none')}
+              className="mt-3 w-full rounded-xl bg-slate-800 hover:bg-slate-700 py-2 text-xs sm:text-sm font-semibold text-white transition cursor-pointer shrink-0"
             >
               {t.close}
             </button>
           </div>
         </div>
+      )}
+
+      {/* ================= DAILY LUCKY WHEEL MODAL ================= */}
+      {activeModal === 'wheel' && (
+        <LuckyWheelModal
+          profile={profile}
+          onUpdateProfile={onUpdateProfile}
+          onClose={() => setActiveModal('none')}
+        />
       )}
 
       {/* Online Matchmaking Realistic Connecting Overlay */}
@@ -1451,7 +1802,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                 {t.connectingOnline}
               </h3>
               <p className="text-xs text-sky-300 font-mono">
-                {t.onlineRegion} • 54/60
+                {t.onlineRegion} • {simulatedOnlineCount}/300
               </p>
             </div>
             <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">

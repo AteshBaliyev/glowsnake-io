@@ -47,7 +47,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     mySnake: null,
     leaderboard: [],
     myRank: 1,
-    totalPlayers: profile.preferredMode === 'offline' ? 112 : 55,
+    totalPlayers: 296,
     serverInstanceIndex: 1,
     fps: 60,
     pingMs: 0,
@@ -423,7 +423,18 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         const nowMs = Date.now();
         localWorld.step(dtSec, nowMs);
 
-        snapshot = localWorld.buildSnapshot(nowMs);
+        const meNow = localWorld.snakes.get(myPlayerId);
+        const camCenter = meNow && meNow.alive ? { x: meNow.x, y: meNow.y } : renderer.getCameraCenter();
+        const zoomEst = Math.max(0.22, renderer.getCameraZoom());
+        const vHalfW = window.innerWidth / 2 / zoomEst + 360;
+        const vHalfH = window.innerHeight / 2 / zoomEst + 360;
+
+        snapshot = localWorld.buildSnapshot(
+          nowMs,
+          { x: camCenter.x, y: camCenter.y, halfW: vHalfW, halfH: vHalfH },
+          true,
+          myPlayerId
+        );
         processAudioEvents(snapshot.events, myPlayerId);
         renderer.ingestEvents(snapshot.events, myPlayerId);
 

@@ -1,13 +1,14 @@
 import { MatchResultSummary, PlayerProfile, SnakeTypeSpec } from '@/types/game';
 
 const STORAGE_KEY = 'glowsnake_io_profile_v4';
+export const MAX_PLAYER_LEVEL = 100;
 
 export const DEFAULT_PRODUCTION_SERVER_URL =
   process.env.NEXT_PUBLIC_SERVER_URL || 'https://vps-2613da52.vps.rcld.dev';
 
 export const DEFAULT_PROFILE: PlayerProfile = {
   nickname: '',
-  language: 'en', // Default language is English
+  language: 'en',
   selectedSnakeId: 'swift-viper',
   selectedMapId: 'cyberpunk-city',
   preferredMode: 'offline',
@@ -33,21 +34,36 @@ export const DEFAULT_PROFILE: PlayerProfile = {
   gamesPlayed: 0,
   unlockedAchievements: [],
   unseenAchievements: [],
+  unlockedSnakeIds: [],
+  lastFreeSpinDate: '',
+  totalWheelSpins: 0,
 };
 
+export function getTodayDateKey(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function canSpinFreeToday(profile: PlayerProfile): boolean {
+  return profile.lastFreeSpinDate !== getTodayDateKey();
+}
+
 /**
- * Smooth XP curve for Levels 1 -> 35+:
+ * Smooth XP curve for Levels 1 -> 100:
  * Lvl 1: 0 XP
- * Lvl 2: 75 XP
- * Lvl 5: 420 XP
- * Lvl 10: 1,440 XP
- * Lvl 20: 5,130 XP
- * Lvl 35: 14,960 XP
+ * Lvl 2: 100 XP
+ * Lvl 10: 1,908 XP
+ * Lvl 25: 10,464 XP
+ * Lvl 50: 38,514 XP
+ * Lvl 100: 147,114 XP
  */
 export function xpForLevel(level: number): number {
   if (level <= 1) return 0;
   const n = level - 1;
-  return n * 125 + n * (n - 1) * 20;
+  return n * 100 + n * (n - 1) * 14;
 }
 
 export function getLevelInfo(totalXp: number): {
@@ -58,8 +74,17 @@ export function getLevelInfo(totalXp: number): {
 } {
   const safeXp = Math.max(0, Math.floor(totalXp));
   let level = 1;
-  while (level < 60 && safeXp >= xpForLevel(level + 1)) {
+  while (level < MAX_PLAYER_LEVEL && safeXp >= xpForLevel(level + 1)) {
     level++;
+  }
+  if (level >= MAX_PLAYER_LEVEL) {
+    const startXp = xpForLevel(MAX_PLAYER_LEVEL);
+    return {
+      level: MAX_PLAYER_LEVEL,
+      currentLevelXp: safeXp - startXp,
+      neededForNext: 5000,
+      progress: 1,
+    };
   }
   const startXp = xpForLevel(level);
   const nextXp = xpForLevel(level + 1);
@@ -73,7 +98,43 @@ export function getLevelInfo(totalXp: number): {
   };
 }
 
+// Precomputed normalized global player distribution across Levels 1..100
+const LEVEL_DISTRIBUTION_WEIGHTS: number[] = (() => {
+  const raw: number[] = [];
+  let sum = 0;
+  for (let lvl = 1; lvl <= MAX_PLAYER_LEVEL; lvl++) {
+    // Realistic pyramid curve: abundant early players, rare elite veterans at 80-100
+    const w = Math.exp(-0.058 * (lvl - 1)) * Math.pow(lvl, -0.32);
+    raw.push(w);
+    sum += w;
+  }
+  return raw.map((w) => (w / sum) * 100);
+})();
+
+export function getLevelPlayerShare(level: number): string {
+  const idx = Math.max(1, Math.min(MAX_PLAYER_LEVEL, Math.floor(level))) - 1;
+  const pct = LEVEL_DISTRIBUTION_WEIGHTS[idx];
+  if (pct >= 1) return pct.toFixed(1);
+  if (pct >= 0.1) return pct.toFixed(2);
+  return Math.max(0.01, pct).toFixed(2);
+}
+
+export function getTopPlayersPercentile(level: number): string {
+  const clamped = Math.max(1, Math.min(MAX_PLAYER_LEVEL, Math.floor(level)));
+  if (clamped <= 1) return '100';
+  let cumulativeAboveOrEqual = 0;
+  for (let i = clamped - 1; i < MAX_PLAYER_LEVEL; i++) {
+    cumulativeAboveOrEqual += LEVEL_DISTRIBUTION_WEIGHTS[i];
+  }
+  if (cumulativeAboveOrEqual >= 10) return cumulativeAboveOrEqual.toFixed(1);
+  if (cumulativeAboveOrEqual >= 1) return cumulativeAboveOrEqual.toFixed(2);
+  return Math.max(0.02, cumulativeAboveOrEqual).toFixed(2);
+}
+
 export function isSnakeUnlocked(profile: PlayerProfile, snake: SnakeTypeSpec): boolean {
+  if (Array.isArray(profile.unlockedSnakeIds) && profile.unlockedSnakeIds.includes(snake.id)) {
+    return true;
+  }
   const { level } = getLevelInfo(profile.totalXp);
   return level >= snake.requiredLevel;
 }
@@ -97,6 +158,13 @@ export function loadProfile(): PlayerProfile {
       unseenAchievements: Array.isArray(parsed.unseenAchievements)
         ? parsed.unseenAchievements
         : [],
+      unlockedSnakeIds: Array.isArray(parsed.unlockedSnakeIds)
+        ? parsed.unlockedSnakeIds
+        : [],
+      lastFreeSpinDate:
+        typeof parsed.lastFreeSpinDate === 'string' ? parsed.lastFreeSpinDate : '',
+      totalWheelSpins:
+        typeof parsed.totalWheelSpins === 'number' ? parsed.totalWheelSpins : 0,
     };
   } catch {
     return { ...DEFAULT_PROFILE };
@@ -133,7 +201,6 @@ export function applyMatchOutcome(
   const bestRunScore = Math.max(0, Math.floor(Math.max(input.finalScore, input.peakScore)));
   const isNewHighScore = bestRunScore > profile.highScore && bestRunScore > 0;
 
-  // Reward XP for score, kills, and survival minutes (reduced by 2x for balanced progression)
   const rawXp =
     Math.floor(bestRunScore * 0.42) +
     input.kills * 20 +

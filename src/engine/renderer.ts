@@ -50,6 +50,7 @@ export function drawSnakeSegments(
     fadeMyName?: boolean;
     bestGraphics?: boolean;
     showArrowGuide?: boolean;
+    viewBounds?: { minX: number; maxX: number; minY: number; maxY: number };
   }
 ): void {
   if (segments.length === 0) return;
@@ -58,22 +59,34 @@ export function drawSnakeSegments(
   const isShielded = Boolean(options?.isShielded);
   const isStealthed = Boolean(options?.isStealthed);
   const baseAlpha = isPhased ? 0.52 : isStealthed ? (options?.isSelf ? 0.5 : 0.16) : 1;
+  const vb = options?.viewBounds;
 
   ctx.save();
   ctx.globalAlpha = baseAlpha;
 
   const rarity = spec.rarity;
+  const isOmega100 = spec.id === 'apex-omega-100';
 
   // Draw segments from tail to head
   for (let i = segments.length - 1; i >= 0; i--) {
     const seg = segments[i];
+    if (
+      vb &&
+      (seg.x < vb.minX || seg.x > vb.maxX || seg.y < vb.minY || seg.y > vb.maxY)
+    ) {
+      continue;
+    }
+
     const t = i / Math.max(1, segments.length - 1);
     const taper = t > 0.85 ? 1 - (t - 0.85) * 2.5 : 1;
     const segR = Math.max(4, radius * taper);
 
     // Base fill by rarity style
     let fill = i % 2 === 0 ? spec.primaryColor : spec.secondaryColor;
-    if (rarity === 'mythic' && spec.id === 'aurora-serpent') {
+    if (isOmega100) {
+      const hue = (timeMs * 0.08 + i * 14) % 360;
+      fill = i % 2 === 0 ? `hsl(${hue}, 88%, 56%)` : '#09090b';
+    } else if (rarity === 'mythic' && spec.id === 'aurora-serpent') {
       const hue = (165 + Math.sin(timeMs * 0.003 + i * 0.25) * 55 + 360) % 360;
       fill = i % 2 === 0 ? `hsl(${hue}, 74%, 52%)` : spec.secondaryColor;
     } else if (rarity === 'divine') {
@@ -272,6 +285,10 @@ export class ArenaRenderer {
     return { x: this.camX, y: this.camY };
   }
 
+  public getCameraZoom(): number {
+    return this.camZoom;
+  }
+
   public ingestEvents(events: SimulationEvent[], myId: string): void {
     for (const ev of events) {
       if (ev.type === 'death') {
@@ -346,7 +363,21 @@ export class ArenaRenderer {
       this.camZoom += (desiredZoom - this.camZoom) * Math.min(1, dtSec * 3.5);
     }
 
-    ctx.fillStyle = map.bgColor;
+    if (renderOptions?.bestGraphics !== false && map.bgAccentColor) {
+      const grad = ctx.createRadialGradient(
+        width * 0.5,
+        height * 0.5,
+        Math.min(width, height) * 0.08,
+        width * 0.5,
+        height * 0.5,
+        Math.max(width, height) * 0.78
+      );
+      grad.addColorStop(0, map.bgAccentColor);
+      grad.addColorStop(1, map.bgColor);
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = map.bgColor;
+    }
     ctx.fillRect(0, 0, width, height);
 
     ctx.save();
@@ -356,6 +387,12 @@ export class ArenaRenderer {
 
     const viewHalfW = width / 2 / this.camZoom + 120;
     const viewHalfH = height / 2 / this.camZoom + 120;
+    const segBounds = {
+      minX: this.camX - viewHalfW - 45,
+      maxX: this.camX + viewHalfW + 45,
+      minY: this.camY - viewHalfH - 45,
+      maxY: this.camY + viewHalfH + 45,
+    };
 
     this.drawWorldGrid(ctx, map, half, viewHalfW, viewHalfH);
     this.drawWorldBoundary(ctx, map, half);
@@ -401,6 +438,7 @@ export class ArenaRenderer {
         showArrowGuide:
           s.id === myId &&
           (renderOptions?.controlMode === 'arrow' || !renderOptions?.controlMode),
+        viewBounds: segBounds,
       });
     }
 
@@ -427,7 +465,65 @@ export class ArenaRenderer {
     viewHalfW: number,
     viewHalfH: number
   ): void {
-    const step = 110;
+    const style = map.patternStyle || 'grid';
+
+    if (style === 'hex') {
+      // Classic Honeycomb Hexagonal Pattern (batched single stroke for 60 FPS!)
+      const r = 72;
+      const dx = r * 1.5;
+      const dy = r * Math.sqrt(3);
+      const minCol = Math.floor(Math.max(-half, this.camX - viewHalfW) / dx) - 1;
+      const maxCol = Math.ceil(Math.min(half, this.camX + viewHalfW) / dx) + 1;
+      const minRow = Math.floor(Math.max(-half, this.camY - viewHalfH) / dy) - 1;
+      const maxRow = Math.ceil(Math.min(half, this.camY + viewHalfH) / dy) + 1;
+
+      ctx.beginPath();
+      const h2 = dy * 0.5;
+      for (let col = minCol; col <= maxCol; col++) {
+        const cx = col * dx;
+        const yOffset = (col & 1) !== 0 ? h2 : 0;
+        for (let row = minRow; row <= maxRow; row++) {
+          const cy = row * dy + yOffset;
+          if (Math.abs(cx) > half || Math.abs(cy) > half) continue;
+          // Draw 3 non-duplicate edges per hex cell to tessellate cleanly
+          ctx.moveTo(cx - r * 0.5, cy - h2);
+          ctx.lineTo(cx + r * 0.5, cy - h2);
+          ctx.lineTo(cx + r, cy);
+          ctx.lineTo(cx + r * 0.5, cy + h2);
+        }
+      }
+      ctx.strokeStyle = map.gridColor;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      return;
+    }
+
+    if (style === 'diamond') {
+      const step = 140;
+      const startX = Math.max(-half, Math.floor((this.camX - viewHalfW) / step) * step);
+      const endX = Math.min(half, Math.ceil((this.camX + viewHalfW) / step) * step);
+      const startY = Math.max(-half, Math.floor((this.camY - viewHalfH) / step) * step);
+      const endY = Math.min(half, Math.ceil((this.camY + viewHalfH) / step) * step);
+
+      ctx.beginPath();
+      for (let x = startX; x <= endX; x += step) {
+        for (let y = startY; y <= endY; y += step) {
+          const hs = step * 0.5;
+          ctx.moveTo(x, y - hs);
+          ctx.lineTo(x + hs, y);
+          ctx.lineTo(x, y + hs);
+          ctx.lineTo(x - hs, y);
+          ctx.closePath();
+        }
+      }
+      ctx.strokeStyle = map.gridColor;
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+      return;
+    }
+
+    // 'grid' and 'stars'
+    const step = style === 'stars' ? 160 : 115;
     const startX = Math.max(-half, Math.floor((this.camX - viewHalfW) / step) * step);
     const endX = Math.min(half, Math.ceil((this.camX + viewHalfW) / step) * step);
     const startY = Math.max(-half, Math.floor((this.camY - viewHalfH) / step) * step);
@@ -443,8 +539,37 @@ export class ArenaRenderer {
       ctx.lineTo(endX, y);
     }
     ctx.strokeStyle = map.gridColor;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.1;
     ctx.stroke();
+
+    if (style === 'stars') {
+      // Deterministic procedural starfield / bioluminescent specks
+      const starCell = 260;
+      const sx0 = Math.floor(Math.max(-half, this.camX - viewHalfW) / starCell);
+      const sx1 = Math.ceil(Math.min(half, this.camX + viewHalfW) / starCell);
+      const sy0 = Math.floor(Math.max(-half, this.camY - viewHalfH) / starCell);
+      const sy1 = Math.ceil(Math.min(half, this.camY + viewHalfH) / starCell);
+
+      ctx.fillStyle = map.borderColor;
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      for (let gx = sx0; gx <= sx1; gx++) {
+        for (let gy = sy0; gy <= sy1; gy++) {
+          const h = Math.abs(Math.sin(gx * 127.1 + gy * 311.7) * 43758.5453);
+          const fx = h - Math.floor(h);
+          const h2 = Math.abs(Math.sin(gx * 269.5 + gy * 183.3) * 24634.6345);
+          const fy = h2 - Math.floor(h2);
+          const px = gx * starCell + fx * starCell;
+          const py = gy * starCell + fy * starCell;
+          const r = 1.4 + (fx * 1.8);
+          ctx.moveTo(px + r, py);
+          ctx.arc(px, py, r, 0, Math.PI * 2);
+        }
+      }
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   private drawWorldBoundary(
