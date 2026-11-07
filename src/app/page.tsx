@@ -23,6 +23,7 @@ export default function HomePage() {
     null
   );
   const [matchKey, setMatchKey] = useState(1);
+  const [reviveScore, setReviveScore] = useState<number>(0);
 
   useEffect(() => {
     const loaded = loadProfile();
@@ -42,10 +43,19 @@ export default function HomePage() {
   }, []);
 
   const handleStartGame = useCallback(() => {
+    setReviveScore(0);
     setMatchSummary(null);
     setMatchKey((k) => k + 1);
     setScreen('playing');
   }, []);
+
+  const handleRevive = useCallback(() => {
+    if (!matchSummary) return;
+    setReviveScore(matchSummary.finalScore);
+    setMatchSummary(null);
+    setMatchKey((k) => k + 1);
+    setScreen('playing');
+  }, [matchSummary]);
 
   const handleGameOver = useCallback((payload: ServerDeathPayload) => {
     const curr = profileRef.current;
@@ -111,6 +121,7 @@ export default function HomePage() {
         summary={matchSummary}
         language={profile.language}
         onPlayAgain={handleStartGame}
+        onRevive={handleRevive}
         onMainMenu={handleBackToMenu}
       />
     );
@@ -120,6 +131,7 @@ export default function HomePage() {
     <GameCanvas
       key={matchKey}
       profile={profile}
+      initialScore={reviveScore}
       onUpdateProfile={handleUpdateProfile}
       onGameOver={handleGameOver}
       onExitToMenu={handleBackToMenu}

@@ -21,6 +21,7 @@ import { AlertTriangle } from 'lucide-react';
 
 interface GameCanvasProps {
   profile: PlayerProfile;
+  initialScore?: number;
   onUpdateProfile: (patch: Partial<PlayerProfile>) => void;
   onGameOver: (payload: ServerDeathPayload) => void;
   onExitToMenu: () => void;
@@ -29,6 +30,7 @@ interface GameCanvasProps {
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
   profile,
+  initialScore,
   onUpdateProfile,
   onGameOver,
   onExitToMenu,
@@ -153,8 +155,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         name: playerName,
         snakeTypeId,
         isBot: false,
-        initialScore: 0,
+        initialScore: initialScore || 0,
       });
+      if (initialScore && initialScore > 0) {
+        spawned.shieldUntil = Date.now() + 5000;
+        spawned.phaseUntil = Date.now() + 2500;
+      }
       spawnedAtMs = spawned.spawnedAt;
       inputAngleRef.current = spawned.angle;
       renderer.resetCamera(spawned.x, spawned.y);

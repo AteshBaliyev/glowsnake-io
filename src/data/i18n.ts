@@ -130,6 +130,12 @@ export interface UITranslations {
   privacyTitle: string;
   privacyBody: string;
   ok: string;
+  reviveWithAd: string;
+  continueWhereLeft: string;
+  getFreeCoins: string;
+  adLoading: string;
+  adNotReady: string;
+  adRewardSuccess: string;
 }
 
 export const UI_TEXT: Record<LanguageCode, UITranslations> = {
@@ -213,6 +219,12 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyBody:
       'GlowSnake.io was created by Atəş Balıyev (Baliyews Studio). The game does not collect, store, or sell any personal data. All player stats, unlocked snakes, high scores, levels, and preferences are stored exclusively on your device via local browser storage. In multiplayer mode, only your chosen nickname and gameplay coordinates are synced in real-time.',
     ok: 'OK',
+    reviveWithAd: 'Watch Ad to Revive (Keep Score)',
+    continueWhereLeft: 'Continue where you left off',
+    getFreeCoins: 'Watch Ad (+150 XP / Coins)',
+    adLoading: 'Loading Ad...',
+    adNotReady: 'Ad is loading, please try again in a moment.',
+    adRewardSuccess: 'Reward granted! +150 XP',
   },
   az: {
     nicknamePlaceholder: 'Ləqəb daxil edin...',
@@ -294,6 +306,12 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyBody:
       'GlowSnake.io oyunu Atəş Balıyev (Baliyews Studio) tərəfindən yaradılmışdır. Oyun heç bir fərdi məlumatı toplamır, saxlamır və paylaşmır. Oyun statistikaları, qazanılan xallar, səviyyələr və ayarlar yalnız sizin cihazınızın lokal yaddaşında saxlanılır. Onlayn rejimdə yalnız daxil etdiyiniz ləqəb və oyun koordinatları ötürülür.',
     ok: 'OK',
+    reviveWithAd: 'Reklama baxaraq Diril (Xalını Qoru)',
+    continueWhereLeft: 'Qaldığın yerdən davam et',
+    getFreeCoins: 'Reklam izlə (+150 XP / Coin Qazan)',
+    adLoading: 'Reklam açılır...',
+    adNotReady: 'Reklam yüklənir, zəhmət olmasa bir neçə saniyə sonra yenidən cəhd edin.',
+    adRewardSuccess: 'Mükafat qazanıldı! +150 XP',
   },
   tr: {
     nicknamePlaceholder: 'Takma ad girin...',
@@ -375,6 +393,12 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyBody:
       'GlowSnake.io, Atəş Balıyev (Baliyews Studio) tarafından geliştirilmiştir. Oyun hiçbir kişisel veriyi toplamaz, saklamaz veya satmaz. Tüm istatistikler, açılan yılanlar, seviyeler ve tercihler yalnızca cihazınızın tarayıcı belleğinde saklanır.',
     ok: 'OK',
+    reviveWithAd: 'Reklam İzleyerek Canlan (Skorunu Koru)',
+    continueWhereLeft: 'Kaldığın yerden devam et',
+    getFreeCoins: 'Reklam İzle (+150 XP / Coin Kazan)',
+    adLoading: 'Reklam açılıyor...',
+    adNotReady: 'Reklam yükleniyor, lütfen birkaç saniye sonra tekrar deneyin.',
+    adRewardSuccess: 'Ödül kazanıldı! +150 XP',
   },
   ru: {
     nicknamePlaceholder: 'Введите никнейм...',
@@ -456,5 +480,11 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyBody:
       'GlowSnake.io создана Атешем Балыевым (Baliyews Studio). Игра не собирает и не передает персональные данные. Все достижения, рекорды и настройки хранятся исключительно локально на вашем устройстве.',
     ok: 'OK',
+    reviveWithAd: 'Возродиться за рекламу (Сохранить счет)',
+    continueWhereLeft: 'Продолжить с места гибели',
+    getFreeCoins: 'Смотреть рекламу (+150 XP / Монет)',
+    adLoading: 'Загрузка рекламы...',
+    adNotReady: 'Реклама загружается, попробуйте через пару секунд.',
+    adRewardSuccess: 'Награда получена! +150 XP',
   },
 };

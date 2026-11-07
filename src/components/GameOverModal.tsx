@@ -1,18 +1,21 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { SnakePreviewCanvas } from '@/components/SnakePreviewCanvas';
 import { ACHIEVEMENTS } from '@/data/achievements';
 import { RARITY_LABELS, UI_TEXT } from '@/data/i18n';
 import { getSnakeSpec } from '@/data/snakes';
 import { soundEngine } from '@/engine/soundEngine';
+import { appodealService } from '@/services/appodealService';
 import { LanguageCode, MatchResultSummary } from '@/types/game';
 import {
   Award,
+  Clapperboard,
   Clock,
   Crown,
   Flame,
   Home,
+  Loader2,
   RotateCcw,
   Sparkles,
   Swords,
@@ -25,6 +28,7 @@ interface GameOverModalProps {
   language: LanguageCode;
   onPlayAgain: () => void;
   onMainMenu: () => void;
+  onRevive?: () => void;
 }
 
 function formatDuration(totalSeconds: number): string {
@@ -40,10 +44,33 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   language,
   onPlayAgain,
   onMainMenu,
+  onRevive,
 }) => {
   const lang: LanguageCode = language || 'en';
   const t = UI_TEXT[lang];
   const snake = getSnakeSpec(summary.snakeTypeId);
+
+  const [isAdLoading, setIsAdLoading] = useState(false);
+  const [adError, setAdError] = useState<string | null>(null);
+
+  const handleReviveWithAd = async () => {
+    soundEngine.playClick();
+    setIsAdLoading(true);
+    setAdError(null);
+    try {
+      const res = await appodealService.showRewardedVideo();
+      setIsAdLoading(false);
+      if (res.rewardEarned) {
+        soundEngine.playLevelUp();
+        onRevive?.();
+      } else if (res.error) {
+        setAdError(res.error);
+      }
+    } catch {
+      setIsAdLoading(false);
+      setAdError(t.adNotReady);
+    }
+  };
 
   const newlyUnlockedDefs = ACHIEVEMENTS.filter((a) =>
     summary.newlyUnlockedAchievements.includes(a.id)
@@ -189,6 +216,51 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Revive via Rewarded Video Ad (Appodeal Test Mode) */}
+        {onRevive && (
+          <div className="mb-2.5">
+            <button
+              type="button"
+              disabled={isAdLoading}
+              onClick={handleReviveWithAd}
+              className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-amber-500 via-emerald-500 to-cyan-500 p-[1.5px] shadow-[0_0_15px_rgba(16,185,129,0.3)] active:scale-[0.98] transition cursor-pointer disabled:opacity-60"
+            >
+              <div className="flex items-center justify-between rounded-[10px] bg-slate-950/85 px-3 py-2 backdrop-blur-sm group-hover:bg-slate-950/70 transition">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-7 w-7 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
+                    {isAdLoading ? (
+                      <Loader2 className="h-4 w-4 text-emerald-400 animate-spin" />
+                    ) : (
+                      <Clapperboard className="h-4 w-4 text-emerald-400" />
+                    )}
+                  </div>
+                  <div className="text-left min-w-0">
+                    <div className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-1.5 truncate">
+                      <span>{isAdLoading ? t.adLoading : t.reviveWithAd}</span>
+                      <span className="rounded bg-emerald-500/20 text-emerald-300 text-[10px] px-1 py-0.2 font-mono">
+                        +{summary.finalScore}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {t.continueWhereLeft}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 text-[11px] font-black text-emerald-400 shrink-0 pl-2">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>DİRİL</span>
+                </div>
+              </div>
+            </button>
+            {adError && (
+              <p className="text-[11px] text-amber-400 text-center mt-1 font-medium">
+                {adError}
+              </p>
+            )}
           </div>
         )}
 

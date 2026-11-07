@@ -157,6 +157,26 @@ class CleanSoundEngine {
     });
   }
 
+  public playLevelUp(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [440, 554.37, 659.25, 880, 1108.73];
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      const start = now + idx * 0.06;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.12, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.22);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.24);
+    });
+  }
+
   public playDeath(): void {
     const ctx = this.ensureContext();
     if (!ctx) return;
