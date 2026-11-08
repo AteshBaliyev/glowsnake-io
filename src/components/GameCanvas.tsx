@@ -2,46 +2,32 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GameHUD, HudState } from '@/components/GameHUD';
-import { UI_TEXT } from '@/data/i18n';
 import { getMapSpec } from '@/data/maps';
 import { ArenaRenderer } from '@/engine/renderer';
 import { SimulationWorld } from '@/engine/simulation';
 import { soundEngine } from '@/engine/soundEngine';
-import {
-  FirebaseRealtimeSync,
-  MultiplayerClient,
-  ServerDeathPayload,
-} from '@/network/multiplayerClient';
+import { ServerDeathPayload } from '@/network/multiplayerClient';
 import {
   PlayerProfile,
   SimulationEvent,
   WorldSnapshot,
 } from '@/types/game';
-import { AlertTriangle } from 'lucide-react';
 
 interface GameCanvasProps {
   profile: PlayerProfile;
   initialScore?: number;
-  onUpdateProfile: (patch: Partial<PlayerProfile>) => void;
   onGameOver: (payload: ServerDeathPayload) => void;
-  onExitToMenu: () => void;
-  onSwitchToOffline: () => void;
 }
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
   profile,
   initialScore,
-  onUpdateProfile,
   onGameOver,
-  onExitToMenu,
-  onSwitchToOffline,
 }) => {
   const profileRef = useRef<PlayerProfile>(profile);
   profileRef.current = profile;
 
-  const t = UI_TEXT[profile.language || 'en'];
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const [hud, setHud] = useState<HudState>({
     mySnake: null,
@@ -65,18 +51,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const keysPressedRef = useRef<Set<string>>(new Set());
   const gameOverFiredRef = useRef<boolean>(false);
 
-  // Background Synth Ambient Music lifecycle
+  // Sync live music preference & volume changes
   useEffect(() => {
-    soundEngine.setMusicEnabled(profile.musicEnabled);
-    if (profile.musicEnabled) {
-      soundEngine.startMusic();
-    } else {
-      soundEngine.stopMusic();
-    }
-    return () => {
-      soundEngine.stopMusic();
-    };
-  }, [profile.musicEnabled]);
+    soundEngine.configureMusic(profile.musicTrack, profile.musicVolume);
+  }, [profile.musicTrack, profile.musicVolume]);
 
   const triggerAbility = useCallback(() => {
     pendingAbilityRef.current = true;
@@ -101,35 +79,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     if (!ctx) return;
 
     gameOverFiredRef.current = false;
-    setConnectionError(null);
     soundEngine.unlock();
-    if (profile.musicEnabled) {
-      soundEngine.startMusic();
-    }
+    soundEngine.configureMusic(
+      profileRef.current.musicTrack,
+      profileRef.current.musicVolume
+    );
+    soundEngine.startMusic();
 
     const mapSpec = getMapSpec(profile.selectedMapId);
     const renderer = new ArenaRenderer();
 
-    let localWorld: SimulationWorld | null = null;
-    let mpClient: MultiplayerClient | null = null;
-    let fbSync: FirebaseRealtimeSync | null = null;
-    let myPlayerId = 'local_player';
-    let spawnedAtMs = Date.now();
-
     const playerName = profile.nickname.trim() || 'Player';
     const snakeTypeId = profile.selectedSnakeId;
     const mapId = profile.selectedMapId;
-    const mode = profile.preferredMode;
-    const customServerUrl = profile.customServerUrl;
-    const firebaseDbUrl = profile.firebaseDbUrl;
-
-    const useFirebase = mode === 'online' && Boolean(firebaseDbUrl.trim());
-    const hasExplicitCustomServer =
-      mode === 'online' &&
-      Boolean(customServerUrl?.trim()) &&
-      !customServerUrl.includes('rcld.dev') &&
-      !customServerUrl.includes('localhost') &&
-      !useFirebase;
 
     const processAudioEvents = (events: SimulationEvent[], selfId: string) => {
       for (const ev of events) {
@@ -144,61 +106,25 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       }
     };
 
-    if (!hasExplicitCustomServer) {
-      localWorld = new SimulationWorld({
-        mapId,
-        mode,
-      });
-      myPlayerId = `plr_${Math.random().toString(36).slice(2, 9)}`;
-      const spawned = localWorld.spawnSnake({
-        id: myPlayerId,
-        name: playerName,
-        snakeTypeId,
-        isBot: false,
-        initialScore: initialScore || 0,
-      });
-      if (initialScore && initialScore > 0) {
-        spawned.shieldUntil = Date.now() + 5000;
-        spawned.phaseUntil = Date.now() + 2500;
-      }
-      spawnedAtMs = spawned.spawnedAt;
-      inputAngleRef.current = spawned.angle;
-      renderer.resetCamera(spawned.x, spawned.y);
-
-      if (useFirebase) {
-        fbSync = new FirebaseRealtimeSync(firebaseDbUrl, mapId, myPlayerId);
-        fbSync.start(() => localWorld?.snakes.get(myPlayerId));
-      }
-    } else {
-      mpClient = new MultiplayerClient();
-      mpClient.connectLobby(customServerUrl, {
-        onStatus: (connected, err) => {
-          if (!connected && err) {
-            setConnectionError(err);
-          } else if (connected) {
-            setConnectionError(null);
-          }
-        },
-      });
-
-      mpClient.joinMatch(
-        { name: playerName, snakeTypeId, mapId },
-        {
-          onDeath: (payload) => {
-            if (gameOverFiredRef.current) return;
-            gameOverFiredRef.current = true;
-            soundEngine.playDeath();
-            onGameOver(payload);
-          },
-          onEvents: (snap) => {
-            if (mpClient) {
-              processAudioEvents(snap.events, mpClient.playerId);
-              renderer.ingestEvents(snap.events, mpClient.playerId);
-            }
-          },
-        }
-      );
+    const localWorld = new SimulationWorld({
+      mapId,
+      mode: 'offline',
+    });
+    const myPlayerId = `plr_${Math.random().toString(36).slice(2, 9)}`;
+    const spawned = localWorld.spawnSnake({
+      id: myPlayerId,
+      name: playerName,
+      snakeTypeId,
+      isBot: false,
+      initialScore: initialScore || 0,
+    });
+    if (initialScore && initialScore > 0) {
+      spawned.shieldUntil = Date.now() + 5000;
+      spawned.phaseUntil = Date.now() + 2500;
     }
+    const spawnedAtMs = spawned.spawnedAt;
+    inputAngleRef.current = spawned.angle;
+    renderer.resetCamera(spawned.x, spawned.y);
 
     const updateCanvasSize = () => {
       const dpr = profileRef.current.bestGraphics
@@ -223,17 +149,20 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
 
     const onMouseMove = (e: MouseEvent) => {
-      if (touchAngleRef.current !== null && profileRef.current.controlMode === 'joystick') return;
+      if (
+        touchAngleRef.current !== null &&
+        profileRef.current.controlMode === 'joystick'
+      )
+        return;
       updateSteerFromCoord(e.clientX, e.clientY);
     };
 
     const onMouseDown = (e: MouseEvent) => {
       soundEngine.unlock();
-      if (profileRef.current.musicEnabled) {
+      if (profileRef.current.musicTrack !== 'off') {
         soundEngine.startMusic();
       }
 
-      // Double click / tap to boost
       if (profileRef.current.doubleTapToBoost && e.button === 0) {
         const nowTap = performance.now();
         if (nowTap - lastTapTimeRef.current < 280) {
@@ -253,11 +182,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const onTouchStart = (e: TouchEvent) => {
       soundEngine.unlock();
-      if (profileRef.current.musicEnabled) {
+      if (profileRef.current.musicTrack !== 'off') {
         soundEngine.startMusic();
       }
 
-      // Direct touchscreen steering for arrow and classic modes
       if (profileRef.current.controlMode !== 'joystick') {
         const touch = e.changedTouches[0];
         if (touch && activeCanvasTouchId === null) {
@@ -280,7 +208,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       if (profileRef.current.controlMode !== 'joystick') {
         for (let i = 0; i < e.changedTouches.length; i++) {
           const touch = e.changedTouches[i];
-          if (touch.identifier === activeCanvasTouchId || activeCanvasTouchId === null) {
+          if (
+            touch.identifier === activeCanvasTouchId ||
+            activeCanvasTouchId === null
+          ) {
             activeCanvasTouchId = touch.identifier;
             updateSteerFromCoord(touch.clientX, touch.clientY);
             break;
@@ -343,7 +274,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     let animId = 0;
     let lastFrameMs = performance.now();
     let lastHudUpdateMs = 0;
-    let lastNetInputMs = 0;
     let framesInSec = 0;
     let fpsTimerMs = performance.now();
     let measuredFps = 60;
@@ -354,7 +284,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     let cachedKills = 0;
     let cachedBestRank = 999;
     let cachedFinalRank = 1;
-    let cachedTotalPlayers = 100;
+    let cachedTotalPlayers = 296;
 
     const frame = (perfNow: number) => {
       const dtSec = Math.min(0.05, Math.max(0.001, (perfNow - lastFrameMs) / 1000));
@@ -386,94 +316,75 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const fireAbility = pendingAbilityRef.current;
       pendingAbilityRef.current = false;
 
-      let snapshot: WorldSnapshot | null = null;
-      let activeSelfId = myPlayerId;
-
-      if (localWorld) {
-        if (fbSync) {
-          const remoteList = fbSync.getRemoteSnakes();
-          const remoteIds = new Set(remoteList.map((r) => r.id));
-          for (const [id, s] of localWorld.snakes.entries()) {
-            if (!s.isBot && id !== myPlayerId && !remoteIds.has(id)) {
-              localWorld.snakes.delete(id);
-            }
-          }
-          for (const rem of remoteList) {
-            localWorld.snakes.set(rem.id, { ...rem, isBot: false });
-          }
-        }
-
-        const meBefore = localWorld.snakes.get(myPlayerId);
-        if (meBefore && meBefore.alive) {
-          cachedFinalScore = Math.floor(meBefore.score);
-          cachedPeakScore = Math.floor(meBefore.peakScore);
-          cachedTotalCollected = Math.floor(meBefore.totalCollected);
-          cachedKills = meBefore.kills;
-          cachedBestRank = Math.min(cachedBestRank, meBefore.bestRank);
-          cachedFinalRank = localWorld.getRankForId(myPlayerId);
-          cachedTotalPlayers = Math.max(1, localWorld.getTotalActiveSnakes());
-        }
-
-        localWorld.setSnakeInput(
-          myPlayerId,
-          inputAngleRef.current,
-          isBoosting,
-          fireAbility
-        );
-        const nowMs = Date.now();
-        localWorld.step(dtSec, nowMs);
-
-        const meNow = localWorld.snakes.get(myPlayerId);
-        const camCenter = meNow && meNow.alive ? { x: meNow.x, y: meNow.y } : renderer.getCameraCenter();
-        const zoomEst = Math.max(0.22, renderer.getCameraZoom());
-        const vHalfW = window.innerWidth / 2 / zoomEst + 360;
-        const vHalfH = window.innerHeight / 2 / zoomEst + 360;
-
-        snapshot = localWorld.buildSnapshot(
-          nowMs,
-          { x: camCenter.x, y: camCenter.y, halfW: vHalfW, halfH: vHalfH },
-          true,
-          myPlayerId
-        );
-        processAudioEvents(snapshot.events, myPlayerId);
-        renderer.ingestEvents(snapshot.events, myPlayerId);
-
-        const meAfter = localWorld.snakes.get(myPlayerId);
-        if ((!meAfter || !meAfter.alive) && !gameOverFiredRef.current) {
-          gameOverFiredRef.current = true;
-          const durationSec = Math.max(
-            1,
-            Math.round((nowMs - spawnedAtMs) / 1000)
-          );
-          const finalRank = Math.min(cachedTotalPlayers, Math.max(1, cachedFinalRank));
-          const bestRank = Math.min(
-            finalRank,
-            meAfter ? meAfter.bestRank : cachedBestRank
-          );
-
-          onGameOver({
-            finalScore: meAfter ? Math.floor(meAfter.score) : cachedFinalScore,
-            peakScore: meAfter ? Math.floor(meAfter.peakScore) : cachedPeakScore,
-            totalCollected: meAfter
-              ? Math.floor(meAfter.totalCollected)
-              : cachedTotalCollected,
-            kills: meAfter ? meAfter.kills : cachedKills,
-            durationSec,
-            finalRank,
-            bestRank: Math.max(1, bestRank),
-            totalPlayers: cachedTotalPlayers,
-          });
-        }
-      } else if (mpClient) {
-        activeSelfId = mpClient.playerId;
-        if (fireAbility || perfNow - lastNetInputMs >= 42) {
-          lastNetInputMs = perfNow;
-          mpClient.sendInput(inputAngleRef.current, isBoosting, fireAbility);
-        }
-        snapshot = mpClient.getInterpolatedSnapshot(dtSec);
+      const meBefore = localWorld.snakes.get(myPlayerId);
+      if (meBefore && meBefore.alive) {
+        cachedFinalScore = Math.floor(meBefore.score);
+        cachedPeakScore = Math.floor(meBefore.peakScore);
+        cachedTotalCollected = Math.floor(meBefore.totalCollected);
+        cachedKills = meBefore.kills;
+        cachedBestRank = Math.min(cachedBestRank, meBefore.bestRank);
+        cachedFinalRank = localWorld.getRankForId(myPlayerId);
+        cachedTotalPlayers = Math.max(1, localWorld.getTotalActiveSnakes());
       }
 
-      const dpr = profile.bestGraphics
+      localWorld.setSnakeInput(
+        myPlayerId,
+        inputAngleRef.current,
+        isBoosting,
+        fireAbility
+      );
+      const nowMs = Date.now();
+      localWorld.step(dtSec, nowMs);
+
+      const meNow = localWorld.snakes.get(myPlayerId);
+      const camCenter =
+        meNow && meNow.alive
+          ? { x: meNow.x, y: meNow.y }
+          : renderer.getCameraCenter();
+      const zoomEst = Math.max(0.22, renderer.getCameraZoom());
+      const vHalfW = window.innerWidth / 2 / zoomEst + 360;
+      const vHalfH = window.innerHeight / 2 / zoomEst + 360;
+
+      const snapshot: WorldSnapshot = localWorld.buildSnapshot(
+        nowMs,
+        { x: camCenter.x, y: camCenter.y, halfW: vHalfW, halfH: vHalfH },
+        true,
+        myPlayerId
+      );
+      processAudioEvents(snapshot.events, myPlayerId);
+      renderer.ingestEvents(snapshot.events, myPlayerId);
+
+      const meAfter = localWorld.snakes.get(myPlayerId);
+      if ((!meAfter || !meAfter.alive) && !gameOverFiredRef.current) {
+        gameOverFiredRef.current = true;
+        const durationSec = Math.max(
+          1,
+          Math.round((nowMs - spawnedAtMs) / 1000)
+        );
+        const finalRank = Math.min(
+          cachedTotalPlayers,
+          Math.max(1, cachedFinalRank)
+        );
+        const bestRank = Math.min(
+          finalRank,
+          meAfter ? meAfter.bestRank : cachedBestRank
+        );
+
+        onGameOver({
+          finalScore: meAfter ? Math.floor(meAfter.score) : cachedFinalScore,
+          peakScore: meAfter ? Math.floor(meAfter.peakScore) : cachedPeakScore,
+          totalCollected: meAfter
+            ? Math.floor(meAfter.totalCollected)
+            : cachedTotalCollected,
+          kills: meAfter ? meAfter.kills : cachedKills,
+          durationSec,
+          finalRank,
+          bestRank: Math.max(1, bestRank),
+          totalPlayers: cachedTotalPlayers,
+        });
+      }
+
+      const dpr = profileRef.current.bestGraphics
         ? Math.min(2, window.devicePixelRatio || 1)
         : 1;
       const cssW = window.innerWidth;
@@ -481,40 +392,36 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.save();
       ctx.scale(dpr, dpr);
 
-      if (snapshot) {
-        renderer.renderFrame(
-          ctx,
-          cssW,
-          cssH,
-          mapSpec,
-          snapshot,
-          activeSelfId,
-          dtSec,
-          {
-            showPlayerNames: profileRef.current.showPlayerNames,
-            fadeMyName: profileRef.current.fadeMyName,
-            bestGraphics: profileRef.current.bestGraphics,
-            wigglingFood: profileRef.current.wigglingFood,
-            mapOnTop: profileRef.current.mapOnTop,
-            lookAhead: profileRef.current.lookAhead,
-            controlMode: profileRef.current.controlMode,
-          }
-        );
-      } else {
-        ctx.fillStyle = mapSpec.bgColor;
-        ctx.fillRect(0, 0, cssW, cssH);
-      }
+      renderer.renderFrame(
+        ctx,
+        cssW,
+        cssH,
+        mapSpec,
+        snapshot,
+        myPlayerId,
+        dtSec,
+        {
+          showPlayerNames: profileRef.current.showPlayerNames,
+          fadeMyName: profileRef.current.fadeMyName,
+          bestGraphics: profileRef.current.bestGraphics,
+          wigglingFood: profileRef.current.wigglingFood,
+          mapOnTop: profileRef.current.mapOnTop,
+          lookAhead: profileRef.current.lookAhead,
+          controlMode: profileRef.current.controlMode,
+          minimapPlacement: profileRef.current.hudLayout?.minimap || null,
+        }
+      );
       ctx.restore();
 
-      if (snapshot && perfNow - lastHudUpdateMs >= 100) {
+      if (perfNow - lastHudUpdateMs >= 100) {
         lastHudUpdateMs = perfNow;
         const myEntity =
-          snapshot.snakes.find((s) => s.id === activeSelfId) || null;
+          snapshot.snakes.find((s) => s.id === myPlayerId) || null;
         const totalPlayers = Math.max(
           1,
           snapshot.totalPlayers || snapshot.snakes.length || 1
         );
-        const myRank = snapshot.ranksById[activeSelfId] || totalPlayers;
+        const myRank = snapshot.ranksById[myPlayerId] || totalPlayers;
 
         setHud({
           mySnake: myEntity,
@@ -523,14 +430,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           totalPlayers,
           serverInstanceIndex: snapshot.serverInstanceIndex || 1,
           fps: measuredFps,
-          pingMs:
-            mode === 'online'
-              ? Math.floor(
-                  24 + Math.sin(perfNow * 0.002) * 5 + Math.random() * 4
-                )
-              : mpClient
-              ? mpClient.pingMs
-              : 0,
+          pingMs: 0,
           now: snapshot.now,
         });
       }
@@ -542,6 +442,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     return () => {
       cancelAnimationFrame(animId);
+      soundEngine.stopMusic();
       window.removeEventListener('resize', updateCanvasSize);
       window.removeEventListener('mousemove', onMouseMove);
       canvas.removeEventListener('mousedown', onMouseDown);
@@ -553,17 +454,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       canvas.removeEventListener('contextmenu', onContextMenu);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
-      mpClient?.leaveMatch();
-      mpClient?.disconnect();
-      fbSync?.stop();
     };
   }, [
-    profile.preferredMode,
     profile.selectedMapId,
     profile.selectedSnakeId,
     profile.nickname,
-    profile.customServerUrl,
-    profile.firebaseDbUrl,
+    initialScore,
     onGameOver,
   ]);
 
@@ -571,43 +467,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     <div className="relative h-screen w-screen overflow-hidden bg-[#13161f]">
       <canvas ref={canvasRef} className="block h-full w-full cursor-crosshair" />
 
-      {connectionError && profile.preferredMode === 'online' && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-xl border border-white/15 bg-slate-900/95 px-4 py-2.5 text-xs text-slate-200">
-          <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
-          <span>{t.connectionFailed}</span>
-          <button
-            onClick={onSwitchToOffline}
-            className="rounded-lg bg-emerald-500 px-3 py-1 font-bold text-slate-950 hover:bg-emerald-400 transition cursor-pointer shrink-0"
-          >
-            {t.switchOffline}
-          </button>
-        </div>
-      )}
-
       <GameHUD
         language={profile.language}
-        mode={profile.preferredMode}
         mapId={profile.selectedMapId}
         snakeTypeId={profile.selectedSnakeId}
         hud={hud}
-        soundEnabled={profile.soundEnabled}
-        musicEnabled={profile.musicEnabled}
         controlMode={profile.controlMode}
         controlHand={profile.controlHand}
         mapOnTop={profile.mapOnTop}
-        onToggleSound={() => {
-          const next = !profile.soundEnabled;
-          soundEngine.setEnabled(next);
-          if (next) soundEngine.playClick();
-          onUpdateProfile({ soundEnabled: next });
-        }}
-        onToggleMusic={() => {
-          const next = !profile.musicEnabled;
-          soundEngine.setMusicEnabled(next);
-          soundEngine.playClick();
-          onUpdateProfile({ musicEnabled: next });
-        }}
-        onLeave={onExitToMenu}
+        hudLayout={profile.hudLayout}
         onTouchSteer={handleTouchSteer}
         onTouchBoost={handleTouchBoost}
         onTriggerAbility={triggerAbility}

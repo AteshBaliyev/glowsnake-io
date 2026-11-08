@@ -2,7 +2,7 @@
   "name": "glowsnake-io",
   "version": "1.0.0",
   "private": true,
-  "description": "GlowSnake.io - Advanced Cyberpunk 2D Multiplayer & Offline Arena Game by Atəş Balıyev | Baliyews Studio",
+  "description": "GlowSnake.io - Advanced Cyberpunk 2D Arena Game by Atesh Studio",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "next build",

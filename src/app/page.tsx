@@ -30,6 +30,7 @@ export default function HomePage() {
     profileRef.current = loaded;
     setProfile(loaded);
     soundEngine.setEnabled(loaded.soundEnabled);
+    soundEngine.configureMusic(loaded.musicTrack, loaded.musicVolume);
     setHydrated(true);
   }, []);
 
@@ -43,6 +44,12 @@ export default function HomePage() {
   }, []);
 
   const handleStartGame = useCallback(() => {
+    soundEngine.unlock();
+    soundEngine.configureMusic(
+      profileRef.current.musicTrack,
+      profileRef.current.musicVolume
+    );
+    soundEngine.startMatchMusic();
     setReviveScore(0);
     setMatchSummary(null);
     setMatchKey((k) => k + 1);
@@ -51,6 +58,12 @@ export default function HomePage() {
 
   const handleRevive = useCallback(() => {
     if (!matchSummary) return;
+    soundEngine.unlock();
+    soundEngine.configureMusic(
+      profileRef.current.musicTrack,
+      profileRef.current.musicVolume
+    );
+    soundEngine.startMatchMusic();
     setReviveScore(matchSummary.finalScore);
     setMatchSummary(null);
     setMatchKey((k) => k + 1);
@@ -79,27 +92,12 @@ export default function HomePage() {
     setScreen('gameover');
   }, []);
 
-  const handleToggleSound = useCallback(() => {
-    setProfile((prev) => {
-      const nextVal = !prev.soundEnabled;
-      soundEngine.setEnabled(nextVal);
-      const next = { ...prev, soundEnabled: nextVal };
-      profileRef.current = next;
-      saveProfile(next);
-      return next;
-    });
-  }, []);
-
   const handleBackToMenu = useCallback(() => {
     soundEngine.playClick();
+    soundEngine.stopMusic();
     setMatchSummary(null);
     setScreen('menu');
   }, []);
-
-  const handleSwitchToOffline = useCallback(() => {
-    handleUpdateProfile({ preferredMode: 'offline' });
-    setMatchKey((k) => k + 1);
-  }, [handleUpdateProfile]);
 
   if (!hydrated) {
     return <div className="min-h-screen bg-[#13161f]" />;
@@ -132,10 +130,7 @@ export default function HomePage() {
       key={matchKey}
       profile={profile}
       initialScore={reviveScore}
-      onUpdateProfile={handleUpdateProfile}
       onGameOver={handleGameOver}
-      onExitToMenu={handleBackToMenu}
-      onSwitchToOffline={handleSwitchToOffline}
     />
   );
 }

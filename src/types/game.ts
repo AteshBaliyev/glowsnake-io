@@ -265,6 +265,28 @@ export interface MatchResultSummary {
 
 export type ControlMode = 'arrow' | 'classic' | 'joystick';
 export type ControlHand = 'right' | 'left';
+export type MusicTrackPreference = 'auto' | 'track1' | 'track2' | 'off';
+
+export type HudElementId =
+  | 'joystick'
+  | 'boost'
+  | 'skill'
+  | 'minimap'
+  | 'leaderboard'
+  | 'scorebar';
+
+export interface HudItemPlacement {
+  /** Center X coordinate in % of screen width (4 .. 96) */
+  xPct: number;
+  /** Center Y coordinate in % of screen height (6 .. 94) */
+  yPct: number;
+  /** Scale multiplier (0.60 .. 1.65) */
+  scale: number;
+  /** Opacity (0.35 .. 1.0) */
+  opacity: number;
+}
+
+export type HudCustomLayout = Record<HudElementId, HudItemPlacement>;
 
 export interface PlayerSettings {
   controlMode: ControlMode;
@@ -278,7 +300,10 @@ export interface PlayerSettings {
   doubleTapToBoost: boolean;
   lookAhead: boolean;
   musicEnabled: boolean;
+  musicTrack: MusicTrackPreference;
+  musicVolume: number;
   soundEnabled: boolean;
+  hudLayout: HudCustomLayout | null;
 }
 
 export interface PlayerProfile extends PlayerSettings {

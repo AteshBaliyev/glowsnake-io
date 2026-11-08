@@ -4,8 +4,12 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'GlowSnake.io',
   description:
-    'GlowSnake.io — 2D Multiplayer & Offline Arena Game for Android. Creator: Atəş Balıyev | Created by Baliyews Studio.',
+    'GlowSnake.io — 2D Arena Game for Android. Created by Atesh Studio.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/icon-192.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

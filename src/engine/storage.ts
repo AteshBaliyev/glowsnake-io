@@ -1,10 +1,62 @@
-import { MatchResultSummary, PlayerProfile, SnakeTypeSpec } from '@/types/game';
+import {
+  ControlHand,
+  HudCustomLayout,
+  MatchResultSummary,
+  MusicTrackPreference,
+  PlayerProfile,
+  SnakeTypeSpec,
+} from '@/types/game';
 
 const STORAGE_KEY = 'glowsnake_io_profile_v4';
 export const MAX_PLAYER_LEVEL = 100;
 
 export const DEFAULT_PRODUCTION_SERVER_URL =
   process.env.NEXT_PUBLIC_SERVER_URL || 'https://vps-2613da52.vps.rcld.dev';
+
+export function getDefaultHudLayout(
+  controlHand: ControlHand = 'right',
+  mapOnTop = true
+): HudCustomLayout {
+  const isLeft = controlHand === 'left';
+  return {
+    joystick: {
+      xPct: isLeft ? 88 : 12,
+      yPct: 78,
+      scale: 1.0,
+      opacity: 0.9,
+    },
+    skill: {
+      xPct: isLeft ? 22 : 78,
+      yPct: 83,
+      scale: 1.0,
+      opacity: 0.95,
+    },
+    boost: {
+      xPct: isLeft ? 10 : 90,
+      yPct: 80,
+      scale: 1.0,
+      opacity: 0.95,
+    },
+    minimap: {
+      xPct: 9,
+      yPct: mapOnTop ? 18 : 82,
+      scale: 1.0,
+      opacity: 0.85,
+    },
+    leaderboard: {
+      xPct: 89,
+      yPct: 22,
+      scale: 1.0,
+      opacity: 0.85,
+    },
+    scorebar: {
+      xPct: 50,
+      yPct: 93,
+      scale: 1.0,
+      opacity: 0.9,
+    },
+  };
+}
 
 export const DEFAULT_PROFILE: PlayerProfile = {
   nickname: '',
@@ -25,7 +77,10 @@ export const DEFAULT_PROFILE: PlayerProfile = {
   doubleTapToBoost: true,
   lookAhead: false,
   musicEnabled: true,
+  musicTrack: 'auto',
+  musicVolume: 0.7,
   soundEnabled: true,
+  hudLayout: null,
   highScore: 0,
   lastScore: 0,
   totalXp: 0,
@@ -145,9 +200,28 @@ export function loadProfile(): PlayerProfile {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_PROFILE };
     const parsed = JSON.parse(raw) as Partial<PlayerProfile>;
+    const validTracks: MusicTrackPreference[] = ['auto', 'track1', 'track2', 'off'];
+    const resolvedTrack: MusicTrackPreference =
+      parsed.musicTrack && validTracks.includes(parsed.musicTrack)
+        ? parsed.musicTrack
+        : parsed.musicEnabled === false
+        ? 'off'
+        : 'auto';
+    const resolvedVol =
+      typeof parsed.musicVolume === 'number'
+        ? Math.max(0, Math.min(1, parsed.musicVolume))
+        : 0.7;
+
     return {
       ...DEFAULT_PROFILE,
       ...parsed,
+      musicTrack: resolvedTrack,
+      musicVolume: resolvedVol,
+      musicEnabled: resolvedTrack !== 'off' && resolvedVol > 0,
+      hudLayout:
+        parsed.hudLayout && typeof parsed.hudLayout === 'object'
+          ? parsed.hudLayout
+          : null,
       customServerUrl:
         parsed.customServerUrl && parsed.customServerUrl.trim() !== ''
           ? parsed.customServerUrl

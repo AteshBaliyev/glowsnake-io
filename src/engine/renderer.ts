@@ -3,6 +3,7 @@ import {
   ArenaMapSpec,
   ControlMode,
   HazardZone,
+  HudItemPlacement,
   Orb,
   Point2D,
   SimulationEvent,
@@ -30,6 +31,7 @@ export interface RenderOptions {
   mapOnTop?: boolean;
   lookAhead?: boolean;
   controlMode?: ControlMode;
+  minimapPlacement?: HudItemPlacement | null;
 }
 
 export function drawSnakeSegments(
@@ -454,7 +456,8 @@ export class ArenaRenderer {
       half,
       snapshot,
       myId,
-      renderOptions?.mapOnTop !== false
+      renderOptions?.mapOnTop !== false,
+      renderOptions?.minimapPlacement
     );
   }
 
@@ -685,14 +688,25 @@ export class ArenaRenderer {
     half: number,
     snapshot: WorldSnapshot,
     myId: string,
-    mapOnTop = true
+    mapOnTop = true,
+    placement?: HudItemPlacement | null
   ): void {
-    const size = width < 640 ? 90 : 114;
-    const x0 = 14;
-    const y0 = mapOnTop ? 14 : Math.max(14, height - size - 14);
+    const baseSize = width < 640 ? 90 : 114;
+    const size = placement ? baseSize * placement.scale : baseSize;
+    const x0 = placement
+      ? Math.max(6, Math.min(width - size - 6, (placement.xPct / 100) * width - size / 2))
+      : 14;
+    const y0 = placement
+      ? Math.max(6, Math.min(height - size - 6, (placement.yPct / 100) * height - size / 2))
+      : mapOnTop
+      ? 14
+      : Math.max(14, height - size - 14);
     const scale = size / (half * 2);
 
     ctx.save();
+    if (placement) {
+      ctx.globalAlpha = Math.max(0.2, Math.min(1, placement.opacity));
+    }
     ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
     ctx.lineWidth = 1.5;

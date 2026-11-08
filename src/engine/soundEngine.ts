@@ -1,4 +1,4 @@
-import { AbilityId } from '@/types/game';
+import { AbilityId, MusicTrackPreference } from '@/types/game';
 
 class CleanSoundEngine {
   private ctx: AudioContext | null = null;
@@ -211,17 +211,148 @@ class CleanSoundEngine {
     sub.stop(now + 0.54);
   }
 
-  // --- Background Synth Ambient Music ("New music") ---
+  // --- Dual-Track MP3 Background Music Engine (/music/track1.mp3 & /music/track2.mp3) ---
+  private readonly trackUrls: readonly [string, string] = [
+    '/music/track1.mp3',
+    '/music/track2.mp3',
+  ];
   private musicEnabled = true;
-  private musicInterval: ReturnType<typeof setInterval> | null = null;
-  private chordIndex = 0;
+  private musicTrack: MusicTrackPreference = 'auto';
+  private musicVolume = 0.7;
+  private bgAudio: HTMLAudioElement | null = null;
+  private activeTrackIdx: 0 | 1 = 0;
+  private nextAutoTrackIdx: 0 | 1 = 0;
+  private isMusicSessionActive = false;
+  private visibilityHooked = false;
+
+  private ensureVisibilityHook(): void {
+    if (this.visibilityHooked || typeof document === 'undefined') return;
+    this.visibilityHooked = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!this.bgAudio) return;
+      if (document.hidden) {
+        this.bgAudio.pause();
+      } else if (this.isMusicSessionActive && this.musicEnabled) {
+        this.bgAudio.play().catch(() => {});
+      }
+    });
+  }
+
+  private playTrackByIndex(idx: 0 | 1, restartFromZero = true): void {
+    if (typeof window === 'undefined' || !this.musicEnabled) return;
+    this.ensureVisibilityHook();
+    this.activeTrackIdx = idx;
+    const targetUrl = this.trackUrls[idx];
+
+    if (!this.bgAudio) {
+      this.bgAudio = new Audio(targetUrl);
+      this.bgAudio.preload = 'auto';
+      this.bgAudio.addEventListener('ended', () => {
+        if (!this.musicEnabled || !this.isMusicSessionActive) return;
+        if (this.musicTrack === 'auto') {
+          const nextIdx: 0 | 1 = this.activeTrackIdx === 0 ? 1 : 0;
+          this.playTrackByIndex(nextIdx, true);
+        } else {
+          if (this.bgAudio) {
+            this.bgAudio.currentTime = 0;
+            this.bgAudio.play().catch(() => {});
+          }
+        }
+      });
+    } else {
+      const currentSrc = this.bgAudio.getAttribute('src') || '';
+      if (currentSrc !== targetUrl) {
+        this.bgAudio.pause();
+        this.bgAudio.setAttribute('src', targetUrl);
+        this.bgAudio.load();
+      } else if (restartFromZero) {
+        try {
+          this.bgAudio.currentTime = 0;
+        } catch {}
+      }
+    }
+
+    this.bgAudio.loop = this.musicTrack === 'track1' || this.musicTrack === 'track2';
+    this.bgAudio.volume = Math.max(0, Math.min(1, this.musicVolume));
+    this.bgAudio.play().catch(() => {});
+  }
+
+  public configureMusic(track: MusicTrackPreference, volume = 0.7): void {
+    this.musicTrack = track;
+    this.musicVolume = Math.max(0, Math.min(1, volume));
+    this.musicEnabled = track !== 'off' && this.musicVolume > 0.005;
+
+    if (!this.musicEnabled) {
+      if (this.bgAudio) {
+        this.bgAudio.pause();
+      }
+      return;
+    }
+
+    if (this.bgAudio) {
+      this.bgAudio.volume = this.musicVolume;
+      this.bgAudio.loop = track === 'track1' || track === 'track2';
+    }
+
+    if (this.isMusicSessionActive) {
+      if (track === 'track1' && (this.activeTrackIdx !== 0 || this.bgAudio?.paused)) {
+        this.playTrackByIndex(0, false);
+      } else if (track === 'track2' && (this.activeTrackIdx !== 1 || this.bgAudio?.paused)) {
+        this.playTrackByIndex(1, false);
+      } else if (track === 'auto' && this.bgAudio?.paused) {
+        this.playTrackByIndex(this.activeTrackIdx, false);
+      }
+    }
+  }
+
+  public previewTrack(track: MusicTrackPreference, volume?: number): void {
+    if (typeof volume === 'number') {
+      this.musicVolume = Math.max(0, Math.min(1, volume));
+    }
+    this.musicTrack = track;
+    this.musicEnabled = track !== 'off' && this.musicVolume > 0.005;
+    if (!this.musicEnabled) {
+      this.stopMusic();
+      return;
+    }
+    this.isMusicSessionActive = true;
+    const idx: 0 | 1 =
+      track === 'track1' ? 0 : track === 'track2' ? 1 : this.nextAutoTrackIdx;
+    this.playTrackByIndex(idx, true);
+  }
+
+  public startMatchMusic(): void {
+    this.isMusicSessionActive = true;
+    if (!this.musicEnabled || this.musicTrack === 'off') {
+      if (this.bgAudio) this.bgAudio.pause();
+      return;
+    }
+
+    let chosenIdx: 0 | 1 = 0;
+    if (this.musicTrack === 'track1') {
+      chosenIdx = 0;
+    } else if (this.musicTrack === 'track2') {
+      chosenIdx = 1;
+    } else {
+      // 'auto': alternate between Song 1 and Song 2 every time a new match begins!
+      chosenIdx = this.nextAutoTrackIdx;
+      this.nextAutoTrackIdx = chosenIdx === 0 ? 1 : 0;
+    }
+
+    this.playTrackByIndex(chosenIdx, true);
+  }
 
   public setMusicEnabled(val: boolean): void {
-    this.musicEnabled = val;
     if (!val) {
-      this.stopMusic();
+      this.musicEnabled = false;
+      if (this.bgAudio) this.bgAudio.pause();
     } else {
-      this.startMusic();
+      if (this.musicTrack === 'off') this.musicTrack = 'auto';
+      if (this.musicVolume <= 0.01) this.musicVolume = 0.7;
+      this.musicEnabled = true;
+      if (this.isMusicSessionActive) {
+        this.startMusic();
+      }
     }
   }
 
@@ -230,59 +361,28 @@ class CleanSoundEngine {
   }
 
   public startMusic(): void {
-    if (!this.musicEnabled || this.musicInterval || typeof window === 'undefined') return;
-    const ctx = this.ensureContext();
-    if (!ctx) return;
-
-    const chords = [
-      [146.83, 220.0, 329.63], // D3, A3, E4
-      [130.81, 196.0, 261.63], // C3, G3, C4
-      [116.54, 174.61, 293.66], // Bb2, F3, D4
-      [174.61, 261.63, 349.23], // F3, C4, F4
-    ];
-
-    const playNextChord = () => {
-      if (!this.musicEnabled || !this.ctx || this.ctx.state === 'suspended') return;
-      const notes = chords[this.chordIndex % chords.length];
-      this.chordIndex++;
-      const now = this.ctx.currentTime;
-      const duration = 2.6;
-
-      notes.forEach((freq, idx) => {
-        if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const filter = this.ctx.createBiquadFilter();
-        const gain = this.ctx.createGain();
-
-        osc.type = idx === 0 ? 'sine' : 'triangle';
-        osc.frequency.setValueAtTime(freq, now);
-
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(550, now);
-        filter.frequency.linearRampToValueAtTime(800, now + duration * 0.5);
-        filter.frequency.linearRampToValueAtTime(450, now + duration);
-
-        gain.gain.setValueAtTime(0.001, now);
-        gain.gain.linearRampToValueAtTime(0.025, now + 0.6);
-        gain.gain.linearRampToValueAtTime(0.001, now + duration);
-
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.start(now);
-        osc.stop(now + duration + 0.1);
-      });
-    };
-
-    playNextChord();
-    this.musicInterval = setInterval(playNextChord, 2800);
+    if (!this.musicEnabled || typeof window === 'undefined') return;
+    this.isMusicSessionActive = true;
+    if (this.bgAudio && this.bgAudio.getAttribute('src')) {
+      this.bgAudio.volume = Math.max(0, Math.min(1, this.musicVolume));
+      if (this.bgAudio.paused) {
+        this.bgAudio.play().catch(() => {});
+      }
+      return;
+    }
+    const idx: 0 | 1 =
+      this.musicTrack === 'track1'
+        ? 0
+        : this.musicTrack === 'track2'
+        ? 1
+        : this.activeTrackIdx;
+    this.playTrackByIndex(idx, false);
   }
 
   public stopMusic(): void {
-    if (this.musicInterval) {
-      clearInterval(this.musicInterval);
-      this.musicInterval = null;
+    this.isMusicSessionActive = false;
+    if (this.bgAudio) {
+      this.bgAudio.pause();
     }
   }
 }

@@ -153,6 +153,25 @@ export interface UITranslations {
   powerStat: string;
   scoreMultStat: string;
   magnetStat: string;
+  bgMusicLabel: string;
+  musicAuto: string;
+  musicTrack1: string;
+  musicTrack2: string;
+  musicOff: string;
+  musicVolumeLabel: string;
+  customizeHudBtn: string;
+  hudEditorTitle: string;
+  hudEditorHint: string;
+  hudElementSize: string;
+  hudElementOpacity: string;
+  hudResetBtn: string;
+  hudSaveBtn: string;
+  hudJoystick: string;
+  hudBoost: string;
+  hudSkill: string;
+  hudMinimap: string;
+  hudLeaderboard: string;
+  hudScorebar: string;
 }
 
 export const UI_TEXT: Record<LanguageCode, UITranslations> = {
@@ -215,7 +234,7 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     unlockedBadge: 'Unlocked',
     lockedBadge: 'Locked',
     newBadge: 'NEW',
-    authorCredit: 'Creator: Atəş Balıyev | Created by Baliyews Studio',
+    authorCredit: 'Created by Atesh Studio',
     controlArrowMode: 'Arrow mode (recommended!)',
     controlClassicMode: 'Classic mode',
     controlJoystickMode: 'Joystick mode',
@@ -234,7 +253,7 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyPolicy: 'Privacy Policy',
     privacyTitle: 'Privacy Policy — GlowSnake.io',
     privacyBody:
-      'GlowSnake.io was created by Atəş Balıyev (Baliyews Studio). The game does not collect, store, or sell any personal data. All player stats, unlocked snakes, high scores, levels, and preferences are stored exclusively on your device via local browser storage. In multiplayer mode, only your chosen nickname and gameplay coordinates are synced in real-time.',
+      'GlowSnake.io was created by Atesh Studio. The game does not collect, store, or sell any personal data. All player stats, unlocked snakes, high scores, levels, and preferences are stored exclusively on your device via local browser storage.',
     ok: 'OK',
     reviveWithAd: 'Watch Ad to Revive (Keep Score)',
     continueWhereLeft: 'Continue where you left off',
@@ -259,6 +278,25 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     powerStat: 'Power',
     scoreMultStat: 'Score Bonus',
     magnetStat: 'Magnet',
+    bgMusicLabel: 'Background Music',
+    musicAuto: 'Auto (Alternating)',
+    musicTrack1: 'Song 1',
+    musicTrack2: 'Song 2',
+    musicOff: 'Mute',
+    musicVolumeLabel: 'Music Volume',
+    customizeHudBtn: 'Customize HUD & Buttons',
+    hudEditorTitle: 'Customize Layout & Sizes',
+    hudEditorHint: 'Drag any item on screen & adjust its size below',
+    hudElementSize: 'Size',
+    hudElementOpacity: 'Opacity',
+    hudResetBtn: 'Reset',
+    hudSaveBtn: 'Save',
+    hudJoystick: 'Joystick',
+    hudBoost: 'Boost',
+    hudSkill: 'Skill',
+    hudMinimap: 'Minimap',
+    hudLeaderboard: 'Leaderboard',
+    hudScorebar: 'Score Bar',
   },
   az: {
     nicknamePlaceholder: 'Ləqəb daxil edin...',
@@ -319,7 +357,7 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     unlockedBadge: 'Açıq',
     lockedBadge: 'Qapalı',
     newBadge: 'YENİ',
-    authorCredit: 'Yaradıcı: Atəş Balıyev | Baliyews Studio tərəfindən yaradılmışdır',
+    authorCredit: 'Yaradıcı: Atesh Studio',
     controlArrowMode: 'Ox rejimi (tövsiyə olunur!)',
     controlClassicMode: 'Klassik rejim',
     controlJoystickMode: 'Coystik rejimi',
@@ -338,7 +376,7 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyPolicy: 'Məxfilik Siyasəti',
     privacyTitle: 'Məxfilik Siyasəti — GlowSnake.io',
     privacyBody:
-      'GlowSnake.io oyunu Atəş Balıyev (Baliyews Studio) tərəfindən yaradılmışdır. Oyun heç bir fərdi məlumatı toplamır, saxlamır və paylaşmır. Oyun statistikaları, qazanılan xallar, səviyyələr və ayarlar yalnız sizin cihazınızın lokal yaddaşında saxlanılır. Onlayn rejimdə yalnız daxil etdiyiniz ləqəb və oyun koordinatları ötürülür.',
+      'GlowSnake.io oyunu Atesh Studio tərəfindən yaradılmışdır. Oyun heç bir fərdi məlumatı toplamır, saxlamır və paylaşmır. Oyun statistikaları, qazanılan xallar, səviyyələr və ayarlar yalnız sizin cihazınızın lokal yaddaşında saxlanılır.',
     ok: 'OK',
     reviveWithAd: 'Reklama baxaraq Diril (Xalını Qoru)',
     continueWhereLeft: 'Qaldığın yerdən davam et',
@@ -363,6 +401,25 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     powerStat: 'Güc',
     scoreMultStat: 'Xal Çarpanı',
     magnetStat: 'Maqnit',
+    bgMusicLabel: 'Arxa Fon Musiqisi',
+    musicAuto: 'Avto (Növbəli)',
+    musicTrack1: 'Mahnı 1',
+    musicTrack2: 'Mahnı 2',
+    musicOff: 'Səssiz',
+    musicVolumeLabel: 'Musiqi Səsi',
+    customizeHudBtn: 'Düymə & Ekran Özəlləşdir',
+    hudEditorTitle: 'Ölçü və Yeri Özəlləşdir',
+    hudEditorHint: 'İstədiyin düyməni sürüşdür və aşağıdan ölçüsünü tənzimlə',
+    hudElementSize: 'Ölçü (Boyut)',
+    hudElementOpacity: 'Şəffaflıq',
+    hudResetBtn: 'Sıfırla',
+    hudSaveBtn: 'Yadda Saxla',
+    hudJoystick: 'Coystik',
+    hudBoost: 'Sürət',
+    hudSkill: 'Güc',
+    hudMinimap: 'Xəritə',
+    hudLeaderboard: 'Liderlər',
+    hudScorebar: 'Xal Paneli',
   },
   tr: {
     nicknamePlaceholder: 'Takma ad girin...',
@@ -423,7 +480,7 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     unlockedBadge: 'Açık',
     lockedBadge: 'Kilitli',
     newBadge: 'YENİ',
-    authorCredit: 'Yapımcı: Atəş Balıyev | Baliyews Studio tarafından geliştirilmiştir',
+    authorCredit: 'Yapımcı: Atesh Studio',
     controlArrowMode: 'Ok modu (önerilen!)',
     controlClassicMode: 'Klasik mod',
     controlJoystickMode: 'Joystick modu',
@@ -442,7 +499,7 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyPolicy: 'Gizlilik Politikası',
     privacyTitle: 'Gizlilik Politikası — GlowSnake.io',
     privacyBody:
-      'GlowSnake.io, Atəş Balıyev (Baliyews Studio) tarafından geliştirilmiştir. Oyun hiçbir kişisel veriyi toplamaz, saklamaz veya satmaz. Tüm istatistikler, açılan yılanlar, seviyeler ve tercihler yalnızca cihazınızın tarayıcı belleğinde saklanır.',
+      'GlowSnake.io, Atesh Studio tarafından geliştirilmiştir. Oyun hiçbir kişisel veriyi toplamaz, saklamaz veya satmaz. Tüm istatistikler, açılan yılanlar, seviyeler ve tercihler yalnızca cihazınızın tarayıcı belleğinde saklanır.',
     ok: 'OK',
     reviveWithAd: 'Reklam İzleyerek Canlan (Skorunu Koru)',
     continueWhereLeft: 'Kaldığın yerden devam et',
@@ -467,6 +524,25 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     powerStat: 'Güç',
     scoreMultStat: 'Skor Çarpanı',
     magnetStat: 'Mıknatıs',
+    bgMusicLabel: 'Arka Plan Müziği',
+    musicAuto: 'Oto (Sırayla)',
+    musicTrack1: 'Şarkı 1',
+    musicTrack2: 'Şarkı 2',
+    musicOff: 'Kapalı',
+    musicVolumeLabel: 'Müzik Sesi',
+    customizeHudBtn: 'Buton & Ekran Özelleştir',
+    hudEditorTitle: 'Boyut ve Konum Özelleştir',
+    hudEditorHint: 'İstediğin öğeyi sürükle ve aşağıdan boyutunu ayarla',
+    hudElementSize: 'Boyut',
+    hudElementOpacity: 'Şeffaflık',
+    hudResetBtn: 'Sıfırla',
+    hudSaveBtn: 'Kaydet',
+    hudJoystick: 'Joystick',
+    hudBoost: 'Hız',
+    hudSkill: 'Güç',
+    hudMinimap: 'Harita',
+    hudLeaderboard: 'Liderler',
+    hudScorebar: 'Skor Çubuğu',
   },
   ru: {
     nicknamePlaceholder: 'Введите никнейм...',
@@ -527,7 +603,7 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     unlockedBadge: 'Открыто',
     lockedBadge: 'Закрыто',
     newBadge: 'НОВОЕ',
-    authorCredit: 'Создатель: Атеш Балыев | Разработано Baliyews Studio',
+    authorCredit: 'Создатель: Atesh Studio',
     controlArrowMode: 'Режим стрелок (рекомендуется!)',
     controlClassicMode: 'Классический режим',
     controlJoystickMode: 'Режим джойстика',
@@ -546,7 +622,7 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyPolicy: 'Политика конфиденциальности',
     privacyTitle: 'Политика конфиденциальности — GlowSnake.io',
     privacyBody:
-      'GlowSnake.io создана Атешем Балыевым (Baliyews Studio). Игра не собирает и не передает персональные данные. Все достижения, рекорды и настройки хранятся исключительно локально на вашем устройстве.',
+      'GlowSnake.io разработана Atesh Studio. Игра не собирает и не передает персональные данные. Все достижения, рекорды и настройки хранятся исключительно локально на вашем устройстве.',
     ok: 'OK',
     reviveWithAd: 'Возродиться за рекламу (Сохранить счет)',
     continueWhereLeft: 'Продолжить с места гибели',
@@ -571,5 +647,24 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     powerStat: 'Мощь',
     scoreMultStat: 'Бонус очков',
     magnetStat: 'Магнит',
+    bgMusicLabel: 'Фоновая музыка',
+    musicAuto: 'Авто (По очереди)',
+    musicTrack1: 'Трек 1',
+    musicTrack2: 'Трек 2',
+    musicOff: 'Выкл',
+    musicVolumeLabel: 'Громкость музыки',
+    customizeHudBtn: 'Настроить кнопки и экран',
+    hudEditorTitle: 'Размер и расположение',
+    hudEditorHint: 'Перетащите любой элемент и настройте размер ниже',
+    hudElementSize: 'Размер',
+    hudElementOpacity: 'Прозрачность',
+    hudResetBtn: 'Сброс',
+    hudSaveBtn: 'Сохранить',
+    hudJoystick: 'Джойстик',
+    hudBoost: 'Рывок',
+    hudSkill: 'Навык',
+    hudMinimap: 'Карта',
+    hudLeaderboard: 'Лидеры',
+    hudScorebar: 'Панель очков',
   },
 };

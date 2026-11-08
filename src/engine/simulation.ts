@@ -20,10 +20,14 @@ import {
 } from '@/types/game';
 
 const BASE_SEGMENTS = 14;
-const MAX_SEGMENTS = 190;
+const MAX_SEGMENTS = 235;
 const BASE_RADIUS = 13;
 const BASE_SPEED = 192;
 const BOOST_MULTIPLIER = 1.66;
+
+const UNIFIED_BOT_NAMES: string[] = Array.from(
+  new Set([...INTERNATIONAL_ONLINE_NAMES, ...PLAYER_LIKE_NAMES])
+);
 
 const CELL_SIZE = 440;
 
@@ -492,9 +496,13 @@ export class SimulationWorld {
     return snake;
   }
 
-  private spawnVariedBot(initialSeed = false, usedNames?: Set<string>): void {
-    const isOnline = this.mode === 'online';
-    const namePool = isOnline ? INTERNATIONAL_ONLINE_NAMES : PLAYER_LIKE_NAMES;
+  private spawnVariedBot(
+    initialSeed = false,
+    usedNames?: Set<string>,
+    seedSlotIndex?: number,
+    forcedBracket?: 'top5' | 'top20' | 'veteran' | 'general'
+  ): void {
+    const namePool = UNIFIED_BOT_NAMES;
 
     let chosenName = namePool[Math.floor(Math.random() * namePool.length)].trim();
     if (usedNames && usedNames.has(chosenName)) {
@@ -502,58 +510,82 @@ export class SimulationWorld {
     }
     usedNames?.add(chosenName);
 
-    const r = Math.random();
     let tier: BotSkillTier = 'normal';
     let initScore = 0;
     let snakePool = SNAKE_TYPES.slice(0, 25);
 
-    if (isOnline) {
-      if (r < 0.18) {
-        tier = 'weak';
-        initScore = initialSeed ? Math.floor(Math.random() * 60) : Math.floor(Math.random() * 30);
-        snakePool = SNAKE_TYPES.slice(0, 25);
-      } else if (r < 0.54) {
-        tier = 'normal';
-        initScore = initialSeed
-          ? Math.floor(60 + Math.random() * 240)
-          : Math.floor(25 + Math.random() * 120);
-        snakePool = SNAKE_TYPES.slice(18, 55);
-      } else if (r < 0.86) {
-        tier = 'strong';
-        initScore = initialSeed
-          ? Math.floor(250 + Math.random() * 720)
-          : Math.floor(110 + Math.random() * 350);
-        snakePool = SNAKE_TYPES.slice(45, 86);
-      } else {
+    if (initialSeed && typeof seedSlotIndex === 'number') {
+      if (seedSlotIndex < 5) {
+        // Ranks 1 - 5: ~15,000 down to ~5,000
+        const topBands: Array<[number, number]> = [
+          [13100, 14950],
+          [10900, 12750],
+          [8800, 10550],
+          [6850, 8450],
+          [5120, 6550],
+        ];
+        const [minS, maxS] = topBands[seedSlotIndex];
+        initScore = Math.floor(minS + Math.random() * (maxS - minS));
         tier = 'titan';
-        initScore = initialSeed
-          ? Math.floor(900 + Math.random() * 2800)
-          : Math.floor(450 + Math.random() * 1200);
-        snakePool = SNAKE_TYPES.slice(72, 100);
+        snakePool = SNAKE_TYPES.slice(82, 100);
+      } else if (seedSlotIndex < 20) {
+        // Ranks 6 - 20: ~5,000 down to ~2,000
+        const t = (seedSlotIndex - 5) / 14; // 0 .. 1
+        const center = 4820 - t * 2700; // 4820 -> 2120
+        const jitter = (Math.random() - 0.5) * 240;
+        initScore = Math.max(2020, Math.min(4960, Math.floor(center + jitter)));
+        tier = Math.random() < 0.8 ? 'strong' : 'normal';
+        snakePool = SNAKE_TYPES.slice(54, 88);
+      } else if (seedSlotIndex < 60) {
+        // Ranks 21 - 60: ~2,000 down to ~750
+        const t = (seedSlotIndex - 20) / 39;
+        const center = 1950 - t * 1170;
+        const jitter = (Math.random() - 0.5) * 120;
+        initScore = Math.max(750, Math.min(1990, Math.floor(center + jitter)));
+        tier = Math.random() < 0.45 ? 'strong' : 'normal';
+        snakePool = SNAKE_TYPES.slice(30, 65);
+      } else if (seedSlotIndex < 140) {
+        // Ranks 61 - 140: ~750 down to ~220
+        const t = (seedSlotIndex - 60) / 79;
+        const center = 740 - t * 510;
+        const jitter = (Math.random() - 0.5) * 60;
+        initScore = Math.max(210, Math.min(749, Math.floor(center + jitter)));
+        const r = Math.random();
+        tier = r < 0.22 ? 'weak' : r < 0.8 ? 'normal' : 'strong';
+        snakePool = SNAKE_TYPES.slice(12, 42);
+      } else {
+        // Ranks 141 - ~300: ~210 down to ~18 (varied skill tiers including agile hunters & weak bots)
+        const r = Math.random();
+        initScore = Math.floor(18 + Math.pow(Math.random(), 1.3) * 190);
+        tier = r < 0.34 ? 'weak' : r < 0.78 ? 'normal' : 'strong';
+        snakePool = SNAKE_TYPES.slice(0, 26);
       }
+    } else if (forcedBracket === 'top5') {
+      initScore = Math.floor(5250 + Math.random() * 8800);
+      tier = 'titan';
+      snakePool = SNAKE_TYPES.slice(80, 100);
+    } else if (forcedBracket === 'top20') {
+      initScore = Math.floor(2080 + Math.random() * 2820);
+      tier = Math.random() < 0.78 ? 'strong' : 'normal';
+      snakePool = SNAKE_TYPES.slice(52, 88);
+    } else if (forcedBracket === 'veteran') {
+      initScore = Math.floor(760 + Math.random() * 1180);
+      tier = Math.random() < 0.45 ? 'strong' : 'normal';
+      snakePool = SNAKE_TYPES.slice(28, 62);
     } else {
-      if (r < 0.34) {
+      const r = Math.random();
+      if (r < 0.3) {
         tier = 'weak';
-        initScore = initialSeed ? Math.floor(Math.random() * 50) : Math.floor(Math.random() * 22);
-        snakePool = SNAKE_TYPES.slice(0, 25);
-      } else if (r < 0.74) {
+        initScore = Math.floor(15 + Math.random() * 95);
+        snakePool = SNAKE_TYPES.slice(0, 22);
+      } else if (r < 0.75) {
         tier = 'normal';
-        initScore = initialSeed
-          ? Math.floor(45 + Math.random() * 190)
-          : Math.floor(15 + Math.random() * 85);
-        snakePool = SNAKE_TYPES.slice(15, 55);
-      } else if (r < 0.92) {
-        tier = 'strong';
-        initScore = initialSeed
-          ? Math.floor(220 + Math.random() * 580)
-          : Math.floor(85 + Math.random() * 260);
-        snakePool = SNAKE_TYPES.slice(45, 85);
+        initScore = Math.floor(45 + Math.random() * 340);
+        snakePool = SNAKE_TYPES.slice(10, 48);
       } else {
-        tier = 'titan';
-        initScore = initialSeed
-          ? Math.floor(800 + Math.random() * 2400)
-          : Math.floor(380 + Math.random() * 950);
-        snakePool = SNAKE_TYPES.slice(70, 100);
+        tier = 'strong';
+        initScore = Math.floor(120 + Math.random() * 560);
+        snakePool = SNAKE_TYPES.slice(35, 78);
       }
     }
 
@@ -595,20 +627,34 @@ export class SimulationWorld {
   }
 
   private computeRadius(score: number): number {
-    return BASE_RADIUS + Math.min(22, Math.sqrt(Math.max(0, score)) * 0.25);
+    const s = Math.max(0, score);
+    return BASE_RADIUS + Math.min(30, Math.pow(s, 0.43) * 0.45);
   }
 
   private computeSegmentCount(score: number): number {
-    return (
-      BASE_SEGMENTS +
-      Math.min(MAX_SEGMENTS - BASE_SEGMENTS, Math.floor(Math.max(0, score) / 6.5))
-    );
+    const s = Math.max(0, score);
+    let extra = 0;
+    if (s <= 400) {
+      extra = s / 8; // up to +50 segs (64 total)
+    } else if (s <= 2500) {
+      extra = 50 + (s - 400) / 30; // up to +120 segs (134 total)
+    } else {
+      extra = 120 + (s - 2500) / 135; // up to MAX_SEGMENTS smoothly across 2,500 -> 15,000
+    }
+    return BASE_SEGMENTS + Math.min(MAX_SEGMENTS - BASE_SEGMENTS, Math.floor(extra));
   }
 
   private addScore(snake: SnakeEntity, amount: number): void {
     if (amount <= 0 || snake.isDecoy) return;
-    snake.score += amount;
-    snake.totalCollected += amount;
+    let effectiveAmount = amount;
+    // Keep top bots naturally within the ~15,000 ceiling; human player has NO ceiling!
+    if (snake.isBot && snake.score >= 14600) {
+      if (snake.score >= 15250) return;
+      effectiveAmount = Math.max(0, Math.floor(amount * 0.12));
+      if (effectiveAmount <= 0) return;
+    }
+    snake.score += effectiveAmount;
+    snake.totalCollected += effectiveAmount;
     if (snake.score > snake.peakScore) {
       snake.peakScore = snake.score;
     }
@@ -1210,13 +1256,21 @@ export class SimulationWorld {
   private maintainPopulation(now = Date.now(), initialSeed = false): void {
     let nonDecoyCount = 0;
     let botCount = 0;
+    let top5Count = 0;
+    let top20Count = 0;
+    let veteranCount = 0;
     const usedNames = new Set<string>();
 
     for (const s of this.snakes.values()) {
       if (s.alive && !s.isDecoy) {
         nonDecoyCount++;
         usedNames.add(s.name);
-        if (s.isBot) botCount++;
+        if (s.isBot) {
+          botCount++;
+          if (s.score >= 5000) top5Count++;
+          else if (s.score >= 2000) top20Count++;
+          else if (s.score >= 750) veteranCount++;
+        }
       }
     }
 
@@ -1231,7 +1285,8 @@ export class SimulationWorld {
     if (nonDecoyCount > this.targetPopulation && botCount > 0) {
       let excess = Math.min(botCount, nonDecoyCount - this.targetPopulation);
       for (const [id, s] of this.snakes.entries()) {
-        if (s.isBot && !s.isDecoy && excess > 0) {
+        // Only trim small/low-score bots so leaderboard giants aren't artificially despawned
+        if (s.isBot && !s.isDecoy && s.score < 500 && excess > 0) {
           this.removeSnake(id);
           excess--;
         }
@@ -1241,7 +1296,22 @@ export class SimulationWorld {
         ? this.targetPopulation - nonDecoyCount
         : Math.min(14, this.targetPopulation - nonDecoyCount);
       for (let i = 0; i < toSpawn; i++) {
-        this.spawnVariedBot(initialSeed, usedNames);
+        if (initialSeed) {
+          this.spawnVariedBot(true, usedNames, i);
+        } else {
+          let bracket: 'top5' | 'top20' | 'veteran' | 'general' = 'general';
+          if (top5Count < 5) {
+            bracket = 'top5';
+            top5Count++;
+          } else if (top20Count < 15) {
+            bracket = 'top20';
+            top20Count++;
+          } else if (veteranCount < 38) {
+            bracket = 'veteran';
+            veteranCount++;
+          }
+          this.spawnVariedBot(false, usedNames, undefined, bracket);
+        }
       }
     }
     void now;
@@ -1710,6 +1780,18 @@ export class SimulationWorld {
       }
     >();
 
+    interface PairContact {
+      attacker: SnakeEntity;
+      defender: SnakeEntity;
+      bodyHit: boolean;
+      headHit: boolean;
+      bestSegIdx: number;
+      penetration: number;
+      ramAlignment: number;
+    }
+
+    const contactsByAttacker = new Map<string, Map<string, PairContact>>();
+
     for (const a of this.snakes.values()) {
       if (!a.alive) continue;
 
@@ -1723,72 +1805,173 @@ export class SimulationWorld {
 
       if (now < a.phaseUntil) continue;
 
+      // Giant snakes can exceed 40px radius, so span=1 (440px cells) covers all contacts cleanly
       const nearSegs = this.getNearbySegments(a.x, a.y, 1);
+      const headCos = Math.cos(a.angle);
+      const headSin = Math.sin(a.angle);
 
-      // PASS 1: Check HEAD-TO-HEAD collisions first so BOTH snakes die simultaneously on a head-on crash!
-      let headHandled = false;
       for (let i = 0; i < nearSegs.length; i++) {
         const ref = nearSegs[i];
-        if (!ref.isHead) continue;
         const b = ref.snake;
         if (b.id === a.id || !b.alive) continue;
         if (a.ownerId === b.id || b.ownerId === a.id) continue;
         if (now < b.phaseUntil) continue;
 
-        const headHitR = (a.radius + b.radius) * 1.02;
-        if (distSq(a.x, a.y, b.x, b.y) <= headHitR * headHitR) {
+        if (ref.isHead) {
+          const headHitR = (a.radius + b.radius) * 0.96;
+          const d2 = distSq(a.x, a.y, b.x, b.y);
+          if (d2 <= headHitR * headHitR) {
+            const d = Math.sqrt(d2) || 0.001;
+            const align = ((b.x - a.x) * headCos + (b.y - a.y) * headSin) / d;
+            const pen = Math.max(0, headHitR - d);
+
+            let mapForA = contactsByAttacker.get(a.id);
+            if (!mapForA) {
+              mapForA = new Map();
+              contactsByAttacker.set(a.id, mapForA);
+            }
+            const existing = mapForA.get(b.id);
+            if (!existing) {
+              mapForA.set(b.id, {
+                attacker: a,
+                defender: b,
+                bodyHit: false,
+                headHit: true,
+                bestSegIdx: 0,
+                penetration: pen,
+                ramAlignment: align,
+              });
+            } else {
+              existing.headHit = true;
+              if (pen > existing.penetration) existing.penetration = pen;
+              if (align > existing.ramAlignment) existing.ramAlignment = align;
+            }
+          }
+        } else {
+          const hitR = (a.radius + b.radius) * 0.9;
+          const hitRSq = hitR * hitR;
+
+          let minD2 = distSq(a.x, a.y, ref.x, ref.y);
+          let cx = ref.x;
+          let cy = ref.y;
+
+          if (minD2 > hitRSq && ref.segIndex > 0 && ref.segIndex < b.segments.length) {
+            const prevSeg = b.segments[ref.segIndex - 1];
+            const sdx = ref.x - prevSeg.x;
+            const sdy = ref.y - prevSeg.y;
+            const l2 = sdx * sdx + sdy * sdy;
+            if (l2 > 0) {
+              const t = Math.max(0, Math.min(1, ((a.x - prevSeg.x) * sdx + (a.y - prevSeg.y) * sdy) / l2));
+              cx = prevSeg.x + t * sdx;
+              cy = prevSeg.y + t * sdy;
+              minD2 = distSq(a.x, a.y, cx, cy);
+            }
+          }
+
+          if (minD2 <= hitRSq) {
+            const d = Math.sqrt(minD2) || 0.001;
+            const align = ((cx - a.x) * headCos + (cy - a.y) * headSin) / d;
+            const pen = Math.max(0, hitR - d);
+
+            let mapForA = contactsByAttacker.get(a.id);
+            if (!mapForA) {
+              mapForA = new Map();
+              contactsByAttacker.set(a.id, mapForA);
+            }
+            const existing = mapForA.get(b.id);
+            if (!existing) {
+              mapForA.set(b.id, {
+                attacker: a,
+                defender: b,
+                bodyHit: true,
+                headHit: false,
+                bestSegIdx: ref.segIndex,
+                penetration: pen,
+                ramAlignment: align,
+              });
+            } else {
+              existing.bodyHit = true;
+              if (ref.segIndex > existing.bestSegIdx) existing.bestSegIdx = ref.segIndex;
+              if (pen > existing.penetration) existing.penetration = pen;
+              if (align > existing.ramAlignment) existing.ramAlignment = align;
+            }
+          }
+        }
+      }
+    }
+
+    const handledMutualPairs = new Set<string>();
+
+    for (const [aId, mapForA] of contactsByAttacker.entries()) {
+      for (const [bId, ab] of mapForA.entries()) {
+        const a = ab.attacker;
+        const b = ab.defender;
+        if (!a.alive || !b.alive) continue;
+
+        const ba = contactsByAttacker.get(bId)?.get(aId);
+
+        if (ba) {
+          // Mutual contact between A and B: STRICTLY ONLY ONE SNAKE DIES (never both!)
+          const pairKey = aId < bId ? `${aId}|${bId}` : `${bId}|${aId}`;
+          if (handledMutualPairs.has(pairKey)) continue;
+          handledMutualPairs.add(pairKey);
+
           const aShield = now < a.shieldUntil;
           const bShield = now < b.shieldUntil;
 
+          if (aShield && bShield) {
+            a.vx -= Math.cos(a.angle) * 210;
+            a.vy -= Math.sin(a.angle) * 210;
+            b.vx -= Math.cos(b.angle) * 210;
+            b.vy -= Math.sin(b.angle) * 210;
+            continue;
+          }
           if (aShield && !bShield) {
             toKillMap.set(b.id, { victim: b, killer: a, cause: 'collision' });
-          } else if (bShield && !aShield) {
+            continue;
+          }
+          if (bShield && !aShield) {
             toKillMap.set(a.id, { victim: a, killer: b, cause: 'collision' });
-          } else if (aShield && bShield) {
-            a.vx -= Math.cos(a.angle) * 200;
-            a.vy -= Math.sin(a.angle) * 200;
+            continue;
+          }
+
+          // Neither shielded: determine whose head rammed into the other's body more!
+          const aDeepBody = ab.bodyHit && ab.bestSegIdx >= 2;
+          const bDeepBody = ba.bodyHit && ba.bestSegIdx >= 2;
+
+          let aDies = false;
+          if (aDeepBody && !bDeepBody) {
+            aDies = true;
+          } else if (bDeepBody && !aDeepBody) {
+            aDies = false;
           } else {
-            // Fair mutual destruction: BOTH snakes die when colliding head-to-head!
+            const faultA = ab.bestSegIdx * 18 + ab.penetration * 1.8 + ab.ramAlignment * 55;
+            const faultB = ba.bestSegIdx * 18 + ba.penetration * 1.8 + ba.ramAlignment * 55;
+            if (Math.abs(faultA - faultB) > 0.001) {
+              aDies = faultA > faultB;
+            } else if (a.score !== b.score) {
+              aDies = a.score < b.score;
+            } else {
+              aDies = a.id < b.id;
+            }
+          }
+
+          if (aDies) {
             toKillMap.set(a.id, { victim: a, killer: b, cause: 'collision' });
+            b.vx -= Math.cos(b.angle) * 80;
+            b.vy -= Math.sin(b.angle) * 80;
+          } else {
             toKillMap.set(b.id, { victim: b, killer: a, cause: 'collision' });
+            a.vx -= Math.cos(a.angle) * 80;
+            a.vy -= Math.sin(a.angle) * 80;
           }
-          headHandled = true;
-          break;
-        }
-      }
-
-      if (headHandled || toKillMap.has(a.id)) continue;
-
-      // PASS 2: Check BODY segment collisions
-      for (let i = 0; i < nearSegs.length; i++) {
-        const ref = nearSegs[i];
-        if (ref.isHead) continue;
-        const b = ref.snake;
-        if (b.id === a.id || !b.alive) continue;
-        if (a.ownerId === b.id || b.ownerId === a.id) continue;
-        if (now < b.phaseUntil) continue;
-
-        const hitR = (a.radius + b.radius) * 0.92;
-        const hitRSq = hitR * hitR;
-
-        let collided = false;
-        if (distSq(a.x, a.y, ref.x, ref.y) <= hitRSq) {
-          collided = true;
-        } else if (ref.segIndex > 0 && ref.segIndex < b.segments.length) {
-          const prevSeg = b.segments[ref.segIndex - 1];
-          if (distToSegmentSq(a.x, a.y, prevSeg.x, prevSeg.y, ref.x, ref.y) <= hitRSq) {
-            collided = true;
-          }
-        }
-
-        if (collided) {
+        } else {
+          // Unilateral contact: only A's head hit B's body!
           if (now < a.shieldUntil) {
             a.vx -= Math.cos(a.angle) * 220;
             a.vy -= Math.sin(a.angle) * 220;
-            break;
           } else {
             toKillMap.set(a.id, { victim: a, killer: b, cause: 'collision' });
-            break;
           }
         }
       }
@@ -1801,90 +1984,34 @@ export class SimulationWorld {
     }
   }
 
-  private updateBotAI(bot: SnakeEntity, now: number): void {
-    if (bot.isDecoy) {
-      bot.targetAngle = normalizeAngle(bot.angle + Math.sin(now * 0.005) * 0.08);
-      bot.isBoosting = true;
-      return;
+  private measureRayClearance(
+    bot: SnakeEntity,
+    rayAngle: number,
+    maxDist: number,
+    nearSegs: SegRef[],
+    now: number,
+    extraPad: number
+  ): number {
+    const rx = Math.cos(rayAngle);
+    const ry = Math.sin(rayAngle);
+    const safeBound = this.worldHalfSize - bot.radius - 75;
+
+    let bestClearance = maxDist;
+
+    if (rx > 0.05) {
+      bestClearance = Math.min(bestClearance, Math.max(0, (safeBound - bot.x) / rx));
+    } else if (rx < -0.05) {
+      bestClearance = Math.min(bestClearance, Math.max(0, (-safeBound - bot.x) / rx));
+    }
+    if (ry > 0.05) {
+      bestClearance = Math.min(bestClearance, Math.max(0, (safeBound - bot.y) / ry));
+    } else if (ry < -0.05) {
+      bestClearance = Math.min(bestClearance, Math.max(0, (-safeBound - bot.y) / ry));
     }
 
-    const tier = bot.botTier || 'normal';
-    const isOnline = this.mode === 'online';
-
-    const nextTick = this.botNextDecisionAt.get(bot.id) || 0;
-    if (now < nextTick) {
-      return;
+    if (now < bot.phaseUntil) {
+      return bestClearance;
     }
-
-    const reactionDelay = isOnline
-      ? tier === 'weak'
-        ? 190 + Math.random() * 90
-        : tier === 'normal'
-        ? 130 + Math.random() * 65
-        : tier === 'strong'
-        ? 85 + Math.random() * 50
-        : 65 + Math.random() * 40
-      : tier === 'weak'
-      ? 240 + Math.random() * 120
-      : tier === 'normal'
-      ? 170 + Math.random() * 90
-      : tier === 'strong'
-      ? 110 + Math.random() * 60
-      : 85 + Math.random() * 45;
-    this.botNextDecisionAt.set(bot.id, now + reactionDelay);
-
-    const blunderChance = isOnline
-      ? tier === 'weak' ? 0.14 : tier === 'normal' ? 0.06 : 0.02
-      : tier === 'weak' ? 0.22 : tier === 'normal' ? 0.11 : tier === 'strong' ? 0.04 : 0.02;
-    const isBlundering = Math.random() < blunderChance;
-
-    const senseRange =
-      tier === 'weak' ? 95 : tier === 'normal' ? 140 : tier === 'strong' ? 190 : 225;
-
-    const nearOrbs = this.getNearbyOrbs(bot.x, bot.y, 1);
-    let bestLootOrb: Orb | null = null;
-    let maxLootValue = 0;
-
-    for (let i = 0; i < nearOrbs.length; i++) {
-      const o = nearOrbs[i];
-      if (o.kind === 'loot' || o.kind === 'star' || o.value >= 6) {
-        const d2 = distSq(bot.x, bot.y, o.x, o.y);
-        if (d2 < 420 * 420 && o.value > maxLootValue) {
-          maxLootValue = o.value;
-          bestLootOrb = o;
-        }
-      }
-    }
-
-    const isLootGreedy =
-      Boolean(bestLootOrb) &&
-      (tier === 'weak' || tier === 'normal' || Math.random() < 0.55);
-    this.botGreedMode.set(bot.id, isLootGreedy);
-
-    let avoidX = 0;
-    let avoidY = 0;
-    let urgentDanger = false;
-
-    const boundWarn = this.worldHalfSize - 300;
-    if (Math.abs(bot.x) > boundWarn) {
-      avoidX += -Math.sign(bot.x) * 6;
-      if (Math.abs(bot.x) > this.worldHalfSize - 140) urgentDanger = true;
-    }
-    if (Math.abs(bot.y) > boundWarn) {
-      avoidY += -Math.sign(bot.y) * 6;
-      if (Math.abs(bot.y) > this.worldHalfSize - 140) urgentDanger = true;
-    }
-
-    const nearSegs = this.getNearbySegments(bot.x, bot.y, 1);
-    let closeRival: SnakeEntity | null = null;
-    let closeRivalDist = Infinity;
-
-    const effectiveSenseRange = isLootGreedy
-      ? Math.max(52, senseRange * 0.48)
-      : isBlundering
-      ? Math.max(48, senseRange * 0.42)
-      : senseRange;
-    const effSenseSq = effectiveSenseRange * effectiveSenseRange;
 
     for (let i = 0; i < nearSegs.length; i++) {
       const ref = nearSegs[i];
@@ -1893,87 +2020,258 @@ export class SimulationWorld {
         continue;
       }
 
-      const dx = bot.x - ref.x;
-      const dy = bot.y - ref.y;
-      const d2 = dx * dx + dy * dy;
+      const dx = ref.x - bot.x;
+      const dy = ref.y - bot.y;
+      const proj = dx * rx + dy * ry;
+      if (proj <= -bot.radius * 0.5 || proj >= bestClearance + 45) continue;
 
-      if (ref.isHead) {
-        const hd = Math.sqrt(d2);
-        if (hd < closeRivalDist) {
-          closeRivalDist = hd;
-          closeRival = other;
+      const perp = Math.abs(dx * ry - dy * rx);
+      const corridorR =
+        bot.radius + other.radius + extraPad + (ref.isHead ? 28 : 10);
+
+      if (perp < corridorR) {
+        const hitDist = Math.max(0, proj - corridorR * 0.72);
+        if (hitDist < bestClearance) {
+          bestClearance = hitDist;
+          if (bestClearance <= 2) return 0;
         }
       }
-
-      if (d2 < effSenseSq && d2 > 1) {
-        const d = Math.sqrt(d2);
-        const w = ((effectiveSenseRange - d) / effectiveSenseRange) * 3.4;
-        avoidX += (dx / d) * w;
-        avoidY += (dy / d) * w;
-        if (d < 58) urgentDanger = true;
-      }
     }
 
-    if (Math.hypot(avoidX, avoidY) > 0.85) {
-      const jitter = (Math.random() - 0.5) * (tier === 'weak' ? 0.35 : 0.15);
-      bot.targetAngle = normalizeAngle(Math.atan2(avoidY, avoidX) + jitter);
-      bot.isBoosting = tier !== 'weak' && urgentDanger && bot.score > 35 && !isBlundering;
-      if (isOnline || tier === 'strong' || tier === 'titan') {
-        if (urgentDanger && now >= bot.abilityCooldownUntil && Math.random() < (isOnline ? 0.3 : 0.2)) {
-          this.castAbility(bot, now);
+    return bestClearance;
+  }
+
+  private updateBotAI(bot: SnakeEntity, now: number): void {
+    if (bot.isDecoy) {
+      bot.targetAngle = normalizeAngle(bot.angle + Math.sin(now * 0.005) * 0.08);
+      bot.isBoosting = true;
+      return;
+    }
+
+    const tier = bot.botTier || 'normal';
+    const nextTick = this.botNextDecisionAt.get(bot.id) || 0;
+    if (now < nextTick) {
+      return;
+    }
+
+    const reactionDelay =
+      tier === 'weak'
+        ? 155 + Math.random() * 75
+        : tier === 'normal'
+        ? 90 + Math.random() * 45
+        : tier === 'strong'
+        ? 55 + Math.random() * 30
+        : 45 + Math.random() * 25;
+    this.botNextDecisionAt.set(bot.id, now + reactionDelay);
+
+    const lookAhead =
+      (tier === 'weak'
+        ? 185
+        : tier === 'normal'
+        ? 300
+        : tier === 'strong'
+        ? 400
+        : 450) + bot.radius * 2.4;
+
+    const safetyPad =
+      tier === 'weak' ? 6 : tier === 'normal' ? 18 : tier === 'strong' ? 28 : 34;
+
+    const nearSegs = this.getNearbySegments(bot.x, bot.y, 1);
+    const nearOrbs = this.getNearbyOrbs(bot.x, bot.y, 1);
+
+    // 1. Scan nearby rival heads for hunting or threat awareness
+    let huntTarget: SnakeEntity | null = null;
+    let huntTargetScore = -Infinity;
+    let closestEnemyHeadDist = Infinity;
+
+    for (let i = 0; i < nearSegs.length; i++) {
+      const ref = nearSegs[i];
+      if (!ref.isHead) continue;
+      const other = ref.snake;
+      if (other.id === bot.id || other.ownerId === bot.id || now < other.stealthUntil) {
+        continue;
+      }
+      const d = Math.hypot(other.x - bot.x, other.y - bot.y);
+      if (d < closestEnemyHeadDist) {
+        closestEnemyHeadDist = d;
+      }
+
+      // Strong & Titan hunters actively target players and nearby snakes to cut them off!
+      if ((tier === 'strong' || tier === 'titan') && d < 660 && bot.score >= 40) {
+        // Prefer human player or high-value targets within striking range
+        const humanBonus = !other.isBot ? 180 : 0;
+        const scoreVal = (700 - d) + humanBonus + Math.min(160, other.score * 0.08);
+        if (scoreVal > huntTargetScore) {
+          huntTargetScore = scoreVal;
+          huntTarget = other;
         }
       }
-      return;
     }
 
-    if (isLootGreedy && bestLootOrb) {
-      bot.targetAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
-      bot.isBoosting =
-        bot.score > 25 &&
-        (closeRivalDist < 260 || maxLootValue >= 10) &&
-        Math.random() < (isOnline ? 0.7 : 0.62);
-      return;
-    }
+    // 2. Compute desired goal angle (Hunting cut-off vs High-value loot vs Orb farming)
+    let desiredAngle = bot.angle + (Math.random() - 0.5) * 0.28;
+    let wantsBoost = false;
+    let isGreedyDive = false;
 
-    if (
-      (isOnline || tier === 'strong' || tier === 'titan') &&
-      closeRival &&
-      closeRivalDist < 320 &&
-      bot.score > 28
-    ) {
-      const leadDist = isOnline ? 125 : tier === 'titan' ? 140 : 110;
-      const interceptX = closeRival.x + Math.cos(closeRival.angle) * leadDist;
-      const interceptY = closeRival.y + Math.sin(closeRival.angle) * leadDist;
-      bot.targetAngle = Math.atan2(interceptY - bot.y, interceptX - bot.x);
-      bot.isBoosting = bot.score > 30 && Math.random() < (isOnline ? 0.5 : 0.36);
-      if (now >= bot.abilityCooldownUntil && Math.random() < (isOnline ? 0.14 : 0.08)) {
-        this.castAbility(bot, now);
-      }
-      return;
-    }
-
-    let bestPriority = -Infinity;
-    let tx = bot.x + Math.cos(bot.angle + (Math.random() - 0.5) * 0.4) * 180;
-    let ty = bot.y + Math.sin(bot.angle + (Math.random() - 0.5) * 0.4) * 180;
-    let chasingHighLoot = false;
-
+    // Check for juicy loot orbs first
+    let bestLootOrb: Orb | null = null;
+    let bestLootPriority = -Infinity;
     for (let i = 0; i < nearOrbs.length; i++) {
       const orb = nearOrbs[i];
       const d2 = distSq(bot.x, bot.y, orb.x, orb.y);
-      if (d2 > 460 * 460) continue;
-      const d = Math.sqrt(d2) + 20;
-      const p = (orb.value * (orb.kind === 'loot' ? 3.0 : 1.2)) / d;
-      if (p > bestPriority) {
-        bestPriority = p;
-        tx = orb.x;
-        ty = orb.y;
-        chasingHighLoot = orb.value >= 7;
+      if (d2 > 500 * 500) continue;
+      const d = Math.sqrt(d2) + 24;
+      const mult = orb.kind === 'loot' || orb.kind === 'star' ? 3.8 : orb.kind === 'core' ? 4.2 : 1.1;
+      const prio = (orb.value * mult) / d;
+      if (prio > bestLootPriority) {
+        bestLootPriority = prio;
+        bestLootOrb = orb;
       }
     }
 
-    bot.targetAngle = Math.atan2(ty - bot.y, tx - bot.x);
-    bot.isBoosting =
-      tier !== 'weak' && chasingHighLoot && bot.score > 45 && Math.random() < 0.28;
+    if (
+      bestLootOrb &&
+      (bestLootOrb.kind === 'loot' || bestLootOrb.kind === 'star' || bestLootOrb.value >= 10)
+    ) {
+      desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
+      wantsBoost = tier !== 'weak' && bot.score > 35 && bestLootOrb.value >= 8 && Math.random() < 0.65;
+      // Weak bots occasionally tunnel-vision onto shiny loot piles
+      isGreedyDive = tier === 'weak' && Math.random() < 0.35;
+    } else if (huntTarget && (tier === 'strong' || tier === 'titan')) {
+      // Tactical Cut-Off / Ambush Maneuver: sprint ahead of target's nose, then cut across!
+      const toMeX = bot.x - huntTarget.x;
+      const toMeY = bot.y - huntTarget.y;
+      const tCos = Math.cos(huntTarget.angle);
+      const tSin = Math.sin(huntTarget.angle);
+      const forwardLead = toMeX * tCos + toMeY * tSin; // > 0 means bot is already ahead of target's head!
+      const lateralOffset = toMeX * -tSin + toMeY * tCos;
+
+      if (forwardLead > 45 && Math.abs(lateralOffset) < 210) {
+        // Already ahead of target's nose — swerve sharply across their path to cut them off!
+        const cutSign = lateralOffset >= 0 ? -1 : 1;
+        desiredAngle = normalizeAngle(huntTarget.angle + cutSign * 1.18);
+        wantsBoost = bot.score > 35;
+        if (now >= bot.abilityCooldownUntil && Math.random() < 0.22) {
+          this.castAbility(bot, now);
+        }
+      } else {
+        // Sprint toward an intercept point ahead of the target's trajectory
+        const leadDist = tier === 'titan' ? 235 : 185;
+        const sideSign = lateralOffset >= 0 ? 1 : -1;
+        const flankOffset = Math.max(55, bot.radius + huntTarget.radius + 38) * sideSign;
+        const ix = huntTarget.x + tCos * leadDist + -tSin * flankOffset;
+        const iy = huntTarget.y + tSin * leadDist + tCos * flankOffset;
+        desiredAngle = Math.atan2(iy - bot.y, ix - bot.x);
+        wantsBoost =
+          bot.score > 50 &&
+          closestEnemyHeadDist < 420 &&
+          Math.random() < (tier === 'titan' ? 0.68 : 0.52);
+      }
+    } else if (bestLootOrb) {
+      desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
+      wantsBoost = false;
+    } else {
+      // Gently steer back toward central arena if drifting far out
+      const distFromCenter = Math.hypot(bot.x, bot.y);
+      if (distFromCenter > this.worldHalfSize * 0.78) {
+        desiredAngle = Math.atan2(-bot.y, -bot.x) + (Math.random() - 0.5) * 0.5;
+      }
+    }
+
+    // 3. Multi-Ray Obstacle & Body Avoidance (prevents bots from crashing into bodies!)
+    const effectiveLookAhead = isGreedyDive ? lookAhead * 0.52 : lookAhead;
+    const forwardClearance = this.measureRayClearance(
+      bot,
+      bot.angle,
+      effectiveLookAhead,
+      nearSegs,
+      now,
+      safetyPad
+    );
+    const desiredClearance = this.measureRayClearance(
+      bot,
+      desiredAngle,
+      effectiveLookAhead,
+      nearSegs,
+      now,
+      safetyPad
+    );
+
+    const dangerThreshold = effectiveLookAhead * (tier === 'weak' ? 0.58 : 0.76);
+
+    if (desiredClearance >= dangerThreshold && forwardClearance >= dangerThreshold * 0.65) {
+      // Desired path is safe and clear!
+      bot.targetAngle = normalizeAngle(desiredAngle);
+      bot.isBoosting = wantsBoost;
+      return;
+    }
+
+    // Danger ahead! Scan 10 candidate steering angles to find the widest safe escape corridor
+    const candidateOffsets = [
+      0,
+      -0.36,
+      0.36,
+      -0.74,
+      0.74,
+      -1.18,
+      1.18,
+      -1.68,
+      1.68,
+      -2.35,
+      2.35,
+    ];
+
+    let bestEscapeAngle = bot.angle;
+    let bestEscapeScore = -Infinity;
+    let bestRawClearance = 0;
+
+    for (let c = 0; c < candidateOffsets.length; c++) {
+      const candAngle = normalizeAngle(bot.angle + candidateOffsets[c]);
+      const clearance = this.measureRayClearance(
+        bot,
+        candAngle,
+        lookAhead * 1.1,
+        nearSegs,
+        now,
+        safetyPad
+      );
+      const goalDiff = Math.abs(shortestAngleDiff(candAngle, desiredAngle));
+      const turnPenalty = Math.abs(candidateOffsets[c]) * 14 + goalDiff * 12;
+      const score = clearance - turnPenalty;
+
+      if (score > bestEscapeScore) {
+        bestEscapeScore = score;
+        bestEscapeAngle = candAngle;
+        bestRawClearance = clearance;
+      }
+    }
+
+    bot.targetAngle = bestEscapeAngle;
+
+    // Never boost blindly INTO an obstacle; only boost if escape corridor is open & an enemy is right on us!
+    const turnNeeded = Math.abs(shortestAngleDiff(bot.angle, bestEscapeAngle));
+    if (forwardClearance < bot.radius * 3.2 + 70 || turnNeeded > 0.65) {
+      bot.isBoosting = false;
+    } else if (
+      tier !== 'weak' &&
+      bestRawClearance > lookAhead * 0.7 &&
+      closestEnemyHeadDist < 220 &&
+      bot.score > 45
+    ) {
+      bot.isBoosting = true;
+    } else {
+      bot.isBoosting = false;
+    }
+
+    // Smart defensive ability cast when cornered!
+    if (
+      (tier === 'strong' || tier === 'titan') &&
+      forwardClearance < bot.radius * 2.5 + 55 &&
+      now >= bot.abilityCooldownUntil &&
+      Math.random() < 0.35
+    ) {
+      this.castAbility(bot, now);
+    }
   }
 
   public getHumanCount(): number {

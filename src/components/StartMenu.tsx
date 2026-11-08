@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { HudLayoutEditorModal } from '@/components/HudLayoutEditorModal';
 import { LuckyWheelModal } from '@/components/LuckyWheelModal';
 import { SnakePreviewCanvas } from '@/components/SnakePreviewCanvas';
 import { ACHIEVEMENTS } from '@/data/achievements';
@@ -17,15 +18,14 @@ import {
   MAX_PLAYER_LEVEL,
   xpForLevel,
 } from '@/engine/storage';
-import { MultiplayerClient } from '@/network/multiplayerClient';
 import { appodealService } from '@/services/appodealService';
 import {
   ArenaPatternStyle,
   LanguageCode,
   MapId,
+  MusicTrackPreference,
   PlayerProfile,
   RarityTier,
-  RoomSummary,
 } from '@/types/game';
 import {
   ArrowRight,
@@ -35,7 +35,6 @@ import {
   Clapperboard,
   Gamepad2,
   Gift,
-  Globe,
   Loader2,
   Lock,
   MousePointer,
@@ -45,12 +44,13 @@ import {
   RotateCw,
   Settings,
   ShieldCheck,
+  Sliders,
   Smartphone,
   Sparkles,
   Trophy,
   Users,
   Volume2,
-  WifiOff,
+  VolumeX,
   X,
   Zap,
 } from 'lucide-react';
@@ -133,12 +133,10 @@ export const StartMenu: React.FC<StartMenuProps> = ({
   const t = UI_TEXT[lang];
 
   const [nameError, setNameError] = useState(false);
-  const [networkError, setNetworkError] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [simulatedOnlineCount, setSimulatedOnlineCount] = useState(296);
   const [activeModal, setActiveModal] = useState<
     | 'none'
     | 'settings'
+    | 'hudEditor'
     | 'snakes'
     | 'themes'
     | 'achievements'
@@ -146,12 +144,10 @@ export const StartMenu: React.FC<StartMenuProps> = ({
     | 'wheel'
     | 'levels'
   >('none');
-  const [showAdvancedNetwork, setShowAdvancedNetwork] = useState(false);
   const [inspectedSnakeId, setInspectedSnakeId] = useState<string>(
     profile.selectedSnakeId
   );
   const [sessionUnseenIds, setSessionUnseenIds] = useState<string[]>([]);
-  const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [adToast, setAdToast] = useState<string | null>(null);
   const currentLevelRowRef = useRef<HTMLDivElement | null>(null);
@@ -179,16 +175,6 @@ export const StartMenu: React.FC<StartMenuProps> = ({
       setTimeout(() => setAdToast(null), 3500);
     }
   };
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setSimulatedOnlineCount((c) => {
-        const delta = Math.random() < 0.5 ? -2 : 2;
-        return Math.max(288, Math.min(306, c + delta));
-      });
-    }, 3500);
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     if (activeModal === 'levels') {
@@ -220,16 +206,10 @@ export const StartMenu: React.FC<StartMenuProps> = ({
     }
   }, [profile, selectedSnake, onUpdateProfile]);
 
-  useEffect(() => {
-    if (profile.preferredMode !== 'online') return;
-    const lobby = new MultiplayerClient();
-    lobby.connectLobby(profile.customServerUrl, {
-      onRooms: (r) => setRooms(r),
-    });
-    return () => {
-      lobby.disconnect();
-    };
-  }, [profile.preferredMode, profile.customServerUrl]);
+  const closeSettingsModal = () => {
+    soundEngine.stopMusic();
+    setActiveModal('none');
+  };
 
   const openAchievementsModal = () => {
     soundEngine.playClick();
@@ -255,24 +235,6 @@ export const StartMenu: React.FC<StartMenuProps> = ({
       return;
     }
     setNameError(false);
-    setNetworkError(null);
-
-    // Online mode strictly requires internet connectivity
-    if (profile.preferredMode === 'online') {
-      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-      if (!isOnline) {
-        setNetworkError(t.internetRequired);
-        return;
-      }
-
-      setIsConnecting(true);
-      setTimeout(() => {
-        setIsConnecting(false);
-        onStartGame();
-      }, 950);
-      return;
-    }
-
     onStartGame();
   };
 
@@ -361,17 +323,18 @@ export const StartMenu: React.FC<StartMenuProps> = ({
         </div>
       </header>
 
-      {/* CENTER: Title, Nickname, Online/Offline, Play */}
+      {/* CENTER: Official Logo, Nickname & Play Button */}
       <main className="relative z-10 my-auto mx-auto w-full max-w-[270px] sm:max-w-sm flex flex-col items-center text-center py-0.5 shrink-0">
-        <div className="mb-0.5">
-          <SnakePreviewCanvas snake={selectedSnake} width={150} height={42} />
+        <div className="mb-2">
+          <img
+            src="/logo.png"
+            alt="GlowSnake.io"
+            draggable={false}
+            className="h-24 w-24 sm:h-32 sm:w-32 rounded-2xl object-cover border border-emerald-400/25 shadow-[0_0_28px_rgba(16,185,129,0.28)]"
+          />
         </div>
 
-        <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white mb-1 sm:mb-2">
-          GlowSnake.io
-        </h1>
-
-        <form onSubmit={handlePlay} className="w-full space-y-1 sm:space-y-2">
+        <form onSubmit={handlePlay} className="w-full space-y-1.5 sm:space-y-2">
           {/* Nickname */}
           <div>
             <input
@@ -394,52 +357,10 @@ export const StartMenu: React.FC<StartMenuProps> = ({
             )}
           </div>
 
-          {/* Offline / Online Switch */}
-          <div className="grid grid-cols-2 gap-1 rounded-lg sm:rounded-xl bg-slate-900/90 border border-white/10 p-0.5">
-            <button
-              type="button"
-              onClick={() => {
-                soundEngine.playClick();
-                onUpdateProfile({ preferredMode: 'offline' });
-              }}
-              className={`rounded-md sm:rounded-lg py-1 sm:py-1.5 text-xs font-semibold transition cursor-pointer ${
-                profile.preferredMode === 'offline'
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {t.offline}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                soundEngine.playClick();
-                setNetworkError(null);
-                onUpdateProfile({ preferredMode: 'online' });
-              }}
-              className={`rounded-md sm:rounded-lg py-1 sm:py-1.5 text-xs font-semibold transition cursor-pointer ${
-                profile.preferredMode === 'online'
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {t.online}
-              {profile.preferredMode === 'online' ? ` (${simulatedOnlineCount})` : ''}
-            </button>
-          </div>
-
-          {/* Network Error Toast for Online Mode without Internet */}
-          {networkError && (
-            <div className="flex items-center gap-1.5 rounded-lg bg-red-500/15 border border-red-500/30 p-1.5 text-[11px] text-red-300 text-left animate-shake">
-              <WifiOff className="h-3.5 w-3.5 text-red-400 shrink-0" />
-              <span>{networkError}</span>
-            </div>
-          )}
-
           {/* Play Button */}
           <button
             type="submit"
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold tracking-wide text-slate-950 transition cursor-pointer shadow-lg shadow-emerald-500/20"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-bold tracking-wide text-slate-950 transition cursor-pointer shadow-lg shadow-emerald-500/25"
           >
             <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-slate-950" />
             <span>{t.play}</span>
@@ -569,7 +490,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
               </div>
 
               <button
-                onClick={() => setActiveModal('none')}
+                onClick={closeSettingsModal}
                 className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white cursor-pointer ml-auto"
               >
                 <X className="h-4 w-4" />
@@ -764,13 +685,29 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                   </button>
                 </div>
 
+                {/* HUD & Button Layout Customizer Button */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundEngine.playClick();
+                      soundEngine.stopMusic();
+                      setActiveModal('hudEditor');
+                    }}
+                    className="w-full rounded-xl border border-cyan-400/45 bg-gradient-to-r from-cyan-500/20 via-emerald-500/15 to-purple-500/20 hover:from-cyan-500/30 hover:to-emerald-500/25 px-3 py-2 text-xs font-extrabold text-cyan-200 transition cursor-pointer flex items-center justify-center gap-2 shadow-sm active:scale-[0.99]"
+                  >
+                    <Sliders className="h-4 w-4 text-cyan-300 shrink-0" />
+                    <span className="truncate">{t.customizeHudBtn}</span>
+                  </button>
+                </div>
+
                 {/* Bottom Left OK Button */}
                 <div className="pt-1">
                   <button
                     type="button"
                     onClick={() => {
                       soundEngine.playClick();
-                      setActiveModal('none');
+                      closeSettingsModal();
                     }}
                     className="w-full sm:w-32 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs tracking-wide py-2 px-4 shadow-md transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
                   >
@@ -957,37 +894,110 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                     </span>
                   </label>
 
-                  {/* 8. New music */}
-                  <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
-                    <input
-                      type="checkbox"
-                      checked={profile.musicEnabled}
-                      onChange={(e) => {
-                        const val = e.target.checked;
-                        soundEngine.setMusicEnabled(val);
-                        soundEngine.playClick();
-                        onUpdateProfile({ musicEnabled: val });
-                      }}
-                      className="hidden"
-                    />
-                    <div
-                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition shrink-0 ${
-                        profile.musicEnabled
-                          ? 'border-cyan-400 bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.4)] text-slate-950'
-                          : 'border-white/30 bg-slate-900/80 text-transparent'
-                      }`}
-                    >
-                      <Check className="h-3.5 w-3.5 stroke-[3]" />
-                    </div>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <Music className="h-3.5 w-3.5 text-cyan-300 shrink-0" />
-                      <span className="text-xs font-semibold text-white truncate">
-                        {t.newMusic}
+                  {/* 8. Background Music Track Selector & Volume */}
+                  <div className="rounded-xl bg-slate-900/75 border border-cyan-500/25 p-2 space-y-1.5 mt-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {profile.musicTrack === 'off' || profile.musicVolume <= 0.01 ? (
+                          <VolumeX className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        ) : (
+                          <Music className="h-3.5 w-3.5 text-cyan-300 shrink-0" />
+                        )}
+                        <span className="text-xs font-bold text-white truncate">
+                          {t.bgMusicLabel}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-cyan-300 tabular-nums">
+                        {profile.musicTrack === 'off'
+                          ? '0%'
+                          : `${Math.round((profile.musicVolume ?? 0.7) * 100)}%`}
                       </span>
                     </div>
-                  </label>
 
-                  {/* 9. New sounds */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+                      {(
+                        [
+                          { id: 'auto', label: t.musicAuto },
+                          { id: 'track1', label: t.musicTrack1 },
+                          { id: 'track2', label: t.musicTrack2 },
+                          { id: 'off', label: t.musicOff },
+                        ] as { id: MusicTrackPreference; label: string }[]
+                      ).map((opt) => {
+                        const active = (profile.musicTrack || 'auto') === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              soundEngine.unlock();
+                              soundEngine.playClick();
+                              const nextVol =
+                                opt.id !== 'off' && (profile.musicVolume ?? 0.7) <= 0.02
+                                  ? 0.7
+                                  : profile.musicVolume ?? 0.7;
+                              onUpdateProfile({
+                                musicTrack: opt.id,
+                                musicVolume: nextVol,
+                                musicEnabled: opt.id !== 'off' && nextVol > 0.01,
+                              });
+                              if (opt.id === 'off') {
+                                soundEngine.configureMusic('off', nextVol);
+                                soundEngine.stopMusic();
+                              } else {
+                                soundEngine.previewTrack(opt.id, nextVol);
+                              }
+                            }}
+                            className={`rounded-lg px-1.5 py-1 text-[10px] font-bold truncate transition cursor-pointer ${
+                              active
+                                ? opt.id === 'off'
+                                  ? 'bg-rose-500 text-white shadow-xs'
+                                  : 'bg-cyan-500 text-slate-950 shadow-xs'
+                                : 'bg-slate-800/90 text-slate-300 border border-white/10 hover:text-white'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Music Volume Slider */}
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <span className="text-[10px] text-slate-400 shrink-0">
+                        {t.musicVolumeLabel}
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={profile.musicTrack === 'off' ? 0 : profile.musicVolume ?? 0.7}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          const nextTrack: MusicTrackPreference =
+                            v <= 0.01
+                              ? 'off'
+                              : profile.musicTrack === 'off'
+                              ? 'auto'
+                              : profile.musicTrack || 'auto';
+                          onUpdateProfile({
+                            musicVolume: v,
+                            musicTrack: nextTrack,
+                            musicEnabled: nextTrack !== 'off' && v > 0.01,
+                          });
+                          soundEngine.configureMusic(nextTrack, v);
+                          if (nextTrack !== 'off' && v > 0.01) {
+                            soundEngine.startMusic();
+                          } else {
+                            soundEngine.stopMusic();
+                          }
+                        }}
+                        className="w-full accent-cyan-400 h-1.5 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 9. Sound Effects */}
                   <label className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition select-none">
                     <input
                       type="checkbox"
@@ -1036,40 +1046,6 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                 </div>
               </div>
             </div>
-
-            {/* Expandable Advanced Network Config */}
-            <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowAdvancedNetwork((v) => !v)}
-                className="hover:text-slate-300 transition cursor-pointer"
-              >
-                {showAdvancedNetwork ? '▼ Hide Network URLs' : '▶ Advanced Network URLs'}
-              </button>
-            </div>
-
-            {showAdvancedNetwork && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/10">
-                <input
-                  type="text"
-                  value={profile.customServerUrl}
-                  onChange={(e) =>
-                    onUpdateProfile({ customServerUrl: e.target.value })
-                  }
-                  placeholder={t.serverUrlLabel}
-                  className="rounded-xl bg-slate-900 border border-white/10 px-3 py-1.5 text-xs text-white outline-none focus:border-cyan-400"
-                />
-                <input
-                  type="text"
-                  value={profile.firebaseDbUrl}
-                  onChange={(e) =>
-                    onUpdateProfile({ firebaseDbUrl: e.target.value })
-                  }
-                  placeholder={t.firebaseUrlLabel}
-                  className="rounded-xl bg-slate-900 border border-white/10 px-3 py-1.5 text-xs text-white outline-none focus:border-cyan-400"
-                />
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -1520,7 +1496,6 @@ export const StartMenu: React.FC<StartMenuProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto max-h-[62vh] custom-scrollbar pr-1">
               {ARENA_MAPS.map((map) => {
                 const active = map.id === profile.selectedMapId;
-                const room = rooms.find((r) => r.mapId === map.id);
                 return (
                   <button
                     key={map.id}
@@ -1565,11 +1540,6 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                             />
                           ))}
                         </div>
-                        {profile.preferredMode === 'online' && room && (
-                          <div className="text-[9px] text-slate-400 mt-0.5">
-                            {t.players}: {room.activePlayers}
-                          </div>
-                        )}
                       </div>
                     </div>
 
@@ -1789,27 +1759,13 @@ export const StartMenu: React.FC<StartMenuProps> = ({
         />
       )}
 
-      {/* Online Matchmaking Realistic Connecting Overlay */}
-      {isConnecting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in select-none">
-          <div className="rounded-2xl border border-sky-500/35 bg-slate-900/95 p-6 max-w-xs w-full text-center shadow-2xl space-y-3">
-            <div className="relative mx-auto h-12 w-12 flex items-center justify-center">
-              <Loader2 className="h-10 w-10 text-sky-400 animate-spin" />
-              <Globe className="h-5 w-5 text-emerald-400 absolute" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white mb-1">
-                {t.connectingOnline}
-              </h3>
-              <p className="text-xs text-sky-300 font-mono">
-                {t.onlineRegion} • {simulatedOnlineCount}/300
-              </p>
-            </div>
-            <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-sky-400 to-emerald-400 animate-pulse w-4/5 rounded-full" />
-            </div>
-          </div>
-        </div>
+      {/* ================= HUD & BUTTON LAYOUT CUSTOMIZER MODAL ================= */}
+      {activeModal === 'hudEditor' && (
+        <HudLayoutEditorModal
+          profile={profile}
+          onUpdateProfile={onUpdateProfile}
+          onClose={() => setActiveModal('settings')}
+        />
       )}
     </div>
   );
