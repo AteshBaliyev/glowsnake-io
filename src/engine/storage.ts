@@ -1,5 +1,6 @@
 import {
   ControlHand,
+  ControlMode,
   HudCustomLayout,
   MatchResultSummary,
   MusicTrackPreference,
@@ -66,7 +67,7 @@ export const DEFAULT_PROFILE: PlayerProfile = {
   preferredMode: 'offline',
   customServerUrl: DEFAULT_PRODUCTION_SERVER_URL,
   firebaseDbUrl: '',
-  controlMode: 'arrow',
+  controlMode: 'joystick',
   controlHand: 'right',
   autoRotate: true,
   showPlayerNames: true,
@@ -212,9 +213,30 @@ export function loadProfile(): PlayerProfile {
         ? Math.max(0, Math.min(1, parsed.musicVolume))
         : 0.7;
 
+    const validControlModes: ControlMode[] = ['arrow', 'classic', 'joystick'];
+    const migrationFlag = window.localStorage.getItem('glowsnake_io_joystick_default_v2');
+    let resolvedControlMode: ControlMode =
+      parsed.controlMode && validControlModes.includes(parsed.controlMode)
+        ? parsed.controlMode
+        : 'joystick';
+
+    if (!migrationFlag) {
+      // First time loading since joystick became default:
+      // If controlMode was left on the old default 'arrow', upgrade to 'joystick'
+      if (resolvedControlMode === 'arrow') {
+        resolvedControlMode = 'joystick';
+      }
+      try {
+        window.localStorage.setItem('glowsnake_io_joystick_default_v2', 'true');
+      } catch {
+        // ignore
+      }
+    }
+
     return {
       ...DEFAULT_PROFILE,
       ...parsed,
+      controlMode: resolvedControlMode,
       musicTrack: resolvedTrack,
       musicVolume: resolvedVol,
       musicEnabled: resolvedTrack !== 'off' && resolvedVol > 0,

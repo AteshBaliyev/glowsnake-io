@@ -96,6 +96,29 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
   const joyScale = hudLayout ? hudLayout.joystick.scale : 1;
 
+  const isPointerDownRef = useRef(false);
+
+  const handleJoyPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
+    isPointerDownRef.current = true;
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    updateJoyFromTouch(e.clientX, e.clientY);
+  };
+
+  const handleJoyPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
+    if (!isPointerDownRef.current) return;
+    updateJoyFromTouch(e.clientX, e.clientY);
+  };
+
+  const handleJoyPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
+    if (!isPointerDownRef.current) return;
+    isPointerDownRef.current = false;
+    setJoyKnob(null);
+    onTouchSteer(null);
+  };
+
   const handleJoyStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (activeTouchId.current !== null) return;
     const touch = e.changedTouches[0];
@@ -266,6 +289,10 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               onTouchMove={handleJoyMove}
               onTouchEnd={handleJoyEnd}
               onTouchCancel={handleJoyEnd}
+              onPointerDown={handleJoyPointerDown}
+              onPointerMove={handleJoyPointerMove}
+              onPointerUp={handleJoyPointerUp}
+              onPointerCancel={handleJoyPointerUp}
               style={
                 hudLayout ? toPlacementStyle(hudLayout.joystick) : undefined
               }

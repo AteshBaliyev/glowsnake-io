@@ -33,6 +33,7 @@ import {
   Check,
   ChevronRight,
   Clapperboard,
+  ExternalLink,
   Gamepad2,
   Gift,
   Globe,
@@ -197,6 +198,23 @@ export const StartMenu: React.FC<StartMenuProps> = ({
       setIsWatchingAd(false);
       setAdToast(t.adNotReady);
       setTimeout(() => setAdToast(null), 3500);
+    }
+  };
+
+  const PRIVACY_POLICY_URL =
+    'https://www.atesh.site/glowsnake-io/privacy-policy.html';
+
+  const handleOpenPrivacyPolicy = () => {
+    soundEngine.playClick();
+    if (typeof window !== 'undefined') {
+      try {
+        const win = window.open(PRIVACY_POLICY_URL, '_blank');
+        if (!win) {
+          window.location.href = PRIVACY_POLICY_URL;
+        }
+      } catch {
+        window.location.href = PRIVACY_POLICY_URL;
+      }
     }
   };
 
@@ -1056,16 +1074,14 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                 <div className="flex items-center justify-end pt-1">
                   <button
                     type="button"
-                    onClick={() => {
-                      soundEngine.playClick();
-                      setActiveModal('privacy');
-                    }}
+                    onClick={handleOpenPrivacyPolicy}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/40 px-2.5 py-1 text-[11px] font-semibold text-purple-200 transition cursor-pointer"
                   >
                     <div className="h-4 w-4 rounded-full bg-purple-600 flex items-center justify-center text-white">
                       <Lock className="h-2.5 w-2.5" />
                     </div>
                     <span>{t.privacyPolicy}</span>
+                    <ExternalLink className="h-2.5 w-2.5 opacity-75" />
                   </button>
                 </div>
               </div>
@@ -1099,8 +1115,17 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
             <button
               type="button"
+              onClick={handleOpenPrivacyPolicy}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 py-2.5 text-xs font-bold text-white transition cursor-pointer mb-2.5"
+            >
+              <span>{t.privacyTitle}</span>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveModal('settings')}
-              className="w-full rounded-xl bg-purple-600 hover:bg-purple-500 py-2.5 text-xs font-bold text-white transition cursor-pointer"
+              className="w-full rounded-xl bg-slate-800 hover:bg-slate-700 py-2 text-xs font-bold text-slate-300 transition cursor-pointer"
             >
               {t.ok}
             </button>
