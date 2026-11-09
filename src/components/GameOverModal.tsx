@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { SnakePreviewCanvas } from '@/components/SnakePreviewCanvas';
 import { ACHIEVEMENTS } from '@/data/achievements';
 import { RARITY_LABELS, UI_TEXT } from '@/data/i18n';
@@ -52,9 +52,26 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
   const [isAdLoading, setIsAdLoading] = useState(false);
   const [adError, setAdError] = useState<string | null>(null);
+  const [adCooldown, setAdCooldown] = useState(admobService.getCooldownRemainingSec());
+
+  useEffect(() => {
+    const unsub = admobService.addCooldownListener((sec) => setAdCooldown(sec));
+    const interval = setInterval(() => {
+      setAdCooldown(admobService.getCooldownRemainingSec());
+    }, 1000);
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleReviveWithAd = async () => {
     soundEngine.playClick();
+    if (admobService.isCooldownActive()) {
+      const wait = admobService.getCooldownRemainingSec();
+      setAdError(t.adCooldownWait.replace('{sec}', String(wait)));
+      return;
+    }
     setIsAdLoading(true);
     setAdError(null);
     try {
@@ -64,7 +81,12 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         soundEngine.playLevelUp();
         onRevive?.();
       } else if (res.error) {
-        setAdError(res.error);
+        if (res.error.startsWith('COOLDOWN:')) {
+          const wait = res.error.split(':')[1] || '60';
+          setAdError(t.adCooldownWait.replace('{sec}', wait));
+        } else {
+          setAdError(res.error);
+        }
       }
     } catch {
       setIsAdLoading(false);
@@ -205,7 +227,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             <div className="my-1">
               <button
                 type="button"
-                disabled={isAdLoading}
+                disabled={isAdLoading || adCooldown > 0}
                 onClick={handleReviveWithAd}
                 className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-amber-500 via-emerald-500 to-cyan-500 p-[1.5px] shadow-[0_0_12px_rgba(16,185,129,0.25)] active:scale-[0.98] transition cursor-pointer disabled:opacity-60"
               >
@@ -220,17 +242,25 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                     </div>
                     <div className="text-left min-w-0">
                       <div className="text-[11px] sm:text-xs font-black text-white flex items-center gap-1.5 truncate">
-                        <span>{isAdLoading ? t.adLoading : t.reviveWithAd}</span>
-                        <span className="rounded bg-emerald-500/20 text-emerald-300 text-[9px] px-1 font-mono">
-                          +{summary.finalScore}
+                        <span>
+                          {isAdLoading
+                            ? t.adLoading
+                            : adCooldown > 0
+                            ? `⏳ ${t.adCooldownWait.replace('{sec}', String(adCooldown))}`
+                            : t.reviveWithAd}
                         </span>
+                        {adCooldown === 0 && (
+                          <span className="rounded bg-emerald-500/20 text-emerald-300 text-[9px] px-1 font-mono">
+                            +{summary.finalScore}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-black text-emerald-400 shrink-0 pl-2">
                     <Sparkles className="h-3 w-3" />
-                    <span>DİRİL</span>
+                    <span>{adCooldown > 0 ? `${adCooldown}s` : 'DİRİL'}</span>
                   </div>
                 </div>
               </button>

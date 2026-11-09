@@ -35,6 +35,7 @@ import {
   Clapperboard,
   Gamepad2,
   Gift,
+  Globe,
   Loader2,
   Lock,
   MousePointer,
@@ -150,10 +151,28 @@ export const StartMenu: React.FC<StartMenuProps> = ({
   const [sessionUnseenIds, setSessionUnseenIds] = useState<string[]>([]);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [adToast, setAdToast] = useState<string | null>(null);
+  const [adCooldown, setAdCooldown] = useState(admobService.getCooldownRemainingSec());
   const currentLevelRowRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const unsub = admobService.addCooldownListener((sec) => setAdCooldown(sec));
+    const interval = setInterval(() => {
+      setAdCooldown(admobService.getCooldownRemainingSec());
+    }, 1000);
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleWatchAdForXp = async () => {
     soundEngine.playClick();
+    if (admobService.isCooldownActive()) {
+      const wait = admobService.getCooldownRemainingSec();
+      setAdToast(t.adCooldownWait.replace('{sec}', String(wait)));
+      setTimeout(() => setAdToast(null), 3000);
+      return;
+    }
     setIsWatchingAd(true);
     setAdToast(null);
     try {
@@ -166,7 +185,12 @@ export const StartMenu: React.FC<StartMenuProps> = ({
         setAdToast(t.adRewardSuccess);
         setTimeout(() => setAdToast(null), 3000);
       } else if (res.error) {
-        setAdToast(res.error);
+        if (res.error.startsWith('COOLDOWN:')) {
+          const wait = res.error.split(':')[1] || '60';
+          setAdToast(t.adCooldownWait.replace('{sec}', wait));
+        } else {
+          setAdToast(res.error);
+        }
         setTimeout(() => setAdToast(null), 3500);
       }
     } catch {
@@ -464,8 +488,9 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                 </h2>
               </div>
 
-              {/* Language Chips */}
-              <div className="flex items-center gap-1 bg-slate-900/80 p-0.5 rounded-xl border border-white/10">
+              {/* Compact Language Selector */}
+              <div className="flex items-center gap-1 bg-slate-900/90 px-1.5 py-0.5 rounded-xl border border-white/10 max-w-[62vw] sm:max-w-none overflow-x-auto no-scrollbar">
+                <Globe className="h-3.5 w-3.5 text-cyan-400 shrink-0 mr-0.5" />
                 {LANGUAGE_OPTIONS.map((opt) => {
                   const active = lang === opt.code;
                   return (
@@ -476,10 +501,10 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                         soundEngine.playClick();
                         onUpdateProfile({ language: opt.code });
                       }}
-                      className={`rounded-lg px-2 py-0.5 text-[11px] font-bold transition cursor-pointer ${
+                      className={`rounded-lg px-2 py-0.5 text-[10px] sm:text-[11px] font-bold transition cursor-pointer shrink-0 whitespace-nowrap ${
                         active
-                          ? 'bg-cyan-500 text-slate-950 shadow-sm'
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-cyan-500 text-slate-950 shadow-sm font-black'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
                       }`}
                     >
                       {opt.label}
@@ -1193,7 +1218,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  disabled={isWatchingAd}
+                  disabled={isWatchingAd || adCooldown > 0}
                   onClick={handleWatchAdForXp}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-emerald-500/20 to-teal-500/20 hover:from-amber-500/30 hover:to-emerald-500/30 border border-emerald-400/40 px-3 py-1.5 text-xs font-bold text-emerald-300 transition cursor-pointer disabled:opacity-60 shadow-[0_0_12px_rgba(16,185,129,0.2)] active:scale-[0.98]"
                 >
@@ -1202,7 +1227,13 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                   ) : (
                     <Clapperboard className="h-3.5 w-3.5 text-amber-400" />
                   )}
-                  <span>{isWatchingAd ? t.adLoading : t.getFreeCoins}</span>
+                  <span>
+                    {isWatchingAd
+                      ? t.adLoading
+                      : adCooldown > 0
+                      ? `⏳ ${t.adCooldownWait.replace('{sec}', String(adCooldown))}`
+                      : t.getFreeCoins}
+                  </span>
                 </button>
 
                 <button
@@ -1454,7 +1485,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                     </div>
                     <button
                       type="button"
-                      disabled={isWatchingAd}
+                      disabled={isWatchingAd || adCooldown > 0}
                       onClick={handleWatchAdForXp}
                       className="w-full rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 py-2 px-3 text-xs font-bold text-emerald-300 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 transition"
                     >
@@ -1463,7 +1494,13 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       ) : (
                         <Clapperboard className="h-3.5 w-3.5 text-amber-400" />
                       )}
-                      <span>{t.getFreeCoins}</span>
+                      <span>
+                        {isWatchingAd
+                          ? t.adLoading
+                          : adCooldown > 0
+                          ? `⏳ ${t.adCooldownWait.replace('{sec}', String(adCooldown))}`
+                          : t.getFreeCoins}
+                      </span>
                     </button>
                   </div>
                 )}

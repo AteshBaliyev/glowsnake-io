@@ -29,6 +29,8 @@ public class AdMobPlugin extends Plugin {
     private boolean isInitialized = false;
     private PluginCall activeRewardCall = null;
     private boolean userEarnedReward = false;
+    private static final long COOLDOWN_DURATION_MS = 60_000;
+    private long lastAdDismissedTimeMs = 0;
 
     @Override
     public void load() {
@@ -109,6 +111,7 @@ public class AdMobPlugin extends Plugin {
             @Override
             public void onAdDismissedFullScreenContent() {
                 Log.d(TAG, "Ad was dismissed.");
+                lastAdDismissedTimeMs = System.currentTimeMillis();
                 rewardedAd = null;
                 loadRewardedAd(); // Preload next ad
                 if (activeRewardCall != null) {
@@ -146,6 +149,15 @@ public class AdMobPlugin extends Plugin {
         Activity activity = getActivity();
         if (activity == null) {
             call.reject("Activity is null");
+            return;
+        }
+
+        // Anti-spam & anti-bot 60-second cooldown protection
+        long now = System.currentTimeMillis();
+        long elapsed = now - lastAdDismissedTimeMs;
+        if (lastAdDismissedTimeMs > 0 && elapsed < COOLDOWN_DURATION_MS) {
+            long remainingSec = (COOLDOWN_DURATION_MS - elapsed) / 1000 + 1;
+            call.reject("COOLDOWN:" + remainingSec);
             return;
         }
 

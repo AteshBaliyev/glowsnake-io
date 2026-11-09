@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SnakePreviewCanvas } from '@/components/SnakePreviewCanvas';
 import { RARITY_LABELS, UI_TEXT } from '@/data/i18n';
 import { SNAKE_TYPES } from '@/data/snakes';
@@ -129,6 +129,18 @@ export const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({
   const [isSpinning, setIsSpinning] = useState(false);
   const [isAdLoading, setIsAdLoading] = useState(false);
   const [adError, setAdError] = useState<string | null>(null);
+  const [adCooldown, setAdCooldown] = useState(admobService.getCooldownRemainingSec());
+
+  useEffect(() => {
+    const unsub = admobService.addCooldownListener((sec) => setAdCooldown(sec));
+    const interval = setInterval(() => {
+      setAdCooldown(admobService.getCooldownRemainingSec());
+    }, 1000);
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
+  }, []);
   const [wonResult, setWonResult] = useState<{
     snake: SnakeTypeSpec;
     wasDuplicate: boolean;
@@ -221,6 +233,12 @@ export const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({
       return;
     }
 
+    if (admobService.isCooldownActive()) {
+      const wait = admobService.getCooldownRemainingSec();
+      setAdError(t.adCooldownWait.replace('{sec}', String(wait)));
+      return;
+    }
+
     // Extra spin via Google AdMob Rewarded Video Ad
     setIsAdLoading(true);
     setAdError(null);
@@ -230,7 +248,12 @@ export const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({
       if (res.rewardEarned) {
         executeWheelSpin(false);
       } else if (res.error) {
-        setAdError(res.error);
+        if (res.error.startsWith('COOLDOWN:')) {
+          const wait = res.error.split(':')[1] || '60';
+          setAdError(t.adCooldownWait.replace('{sec}', wait));
+        } else {
+          setAdError(res.error);
+        }
       }
     } catch {
       setIsAdLoading(false);
@@ -416,11 +439,13 @@ export const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({
             {/* Spin Button (Free Daily OR Watch Ad to Spin Again) */}
             <button
               type="button"
-              disabled={isSpinning || isAdLoading}
+              disabled={isSpinning || isAdLoading || (!freeAvailable && adCooldown > 0)}
               onClick={handleSpinClick}
               className={`w-full rounded-xl py-2.5 px-4 text-xs sm:text-sm font-extrabold transition flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-60 active:scale-[0.98] ${
                 freeAvailable
                   ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 text-slate-950 shadow-emerald-500/25'
+                  : adCooldown > 0
+                  ? 'bg-slate-800 text-slate-400 border border-white/10'
                   : 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white shadow-amber-500/25'
               }`}
             >
@@ -438,6 +463,10 @@ export const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({
                 <>
                   <Gift className="h-4 w-4" />
                   <span>{t.spinFreeDaily}</span>
+                </>
+              ) : adCooldown > 0 ? (
+                <>
+                  <span>⏳ {t.adCooldownWait.replace('{sec}', String(adCooldown))}</span>
                 </>
               ) : (
                 <>

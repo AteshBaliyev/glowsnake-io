@@ -19,9 +19,69 @@ const NativeAdMob = registerPlugin<AdMobPluginInterface>('AdMobPlugin');
 
 export const ADMOB_APP_ID = 'ca-app-pub-9623198312339039~5956049503';
 export const ADMOB_REWARDED_UNIT_ID = 'ca-app-pub-9623198312339039/3138314476';
+export const ADMOB_COOLDOWN_SECONDS = 60;
+const STORAGE_COOLDOWN_KEY = 'glowsnake_admob_cooldown_until';
 
 class AdMobService {
   private initialized = false;
+  private cooldownUntilMs = 0;
+  private listeners: Set<(remainSec: number) => void> = new Set();
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(STORAGE_COOLDOWN_KEY);
+        if (stored) {
+          const ts = parseInt(stored, 10);
+          if (!isNaN(ts) && ts > Date.now()) {
+            this.cooldownUntilMs = ts;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  public getCooldownRemainingSec(): number {
+    const diff = this.cooldownUntilMs - Date.now();
+    return diff > 0 ? Math.ceil(diff / 1000) : 0;
+  }
+
+  public isCooldownActive(): boolean {
+    return this.getCooldownRemainingSec() > 0;
+  }
+
+  public startCooldown(seconds = ADMOB_COOLDOWN_SECONDS): void {
+    this.cooldownUntilMs = Date.now() + seconds * 1000;
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_COOLDOWN_KEY, String(this.cooldownUntilMs));
+      } catch {
+        // ignore
+      }
+    }
+    this.notifyListeners();
+  }
+
+  public addCooldownListener(fn: (remainSec: number) => void): () => void {
+    this.listeners.add(fn);
+    fn(this.getCooldownRemainingSec());
+    return () => {
+      this.listeners.delete(fn);
+    };
+  }
+
+  private notifyListeners(): void {
+    const remain = this.getCooldownRemainingSec();
+    this.listeners.forEach((fn) => {
+      try {
+        fn(remain);
+      } catch {
+        // ignore
+      }
+    });
+  }
 
   public async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -41,6 +101,8 @@ class AdMobService {
   }
 
   public async isRewardedVideoLoaded(): Promise<boolean> {
+    if (this.isCooldownActive()) return false;
+
     if (Capacitor.isNativePlatform()) {
       try {
         const res = await NativeAdMob.isRewardedVideoLoaded();
@@ -53,11 +115,21 @@ class AdMobService {
   }
 
   public async showRewardedVideo(): Promise<AdRewardResult> {
+    const cooldownRemain = this.getCooldownRemainingSec();
+    if (cooldownRemain > 0) {
+      return {
+        rewardEarned: false,
+        error: `COOLDOWN:${cooldownRemain}`,
+      };
+    }
+
     await this.initialize();
 
     if (Capacitor.isNativePlatform()) {
       try {
         const result = await NativeAdMob.showRewardedVideo();
+        // 60 seconds anti-invalid click cooldown to safeguard AdMob account
+        this.startCooldown(ADMOB_COOLDOWN_SECONDS);
         return {
           rewardEarned: Boolean(result?.rewardEarned),
           amount: result?.amount ?? 1,
@@ -65,6 +137,10 @@ class AdMobService {
         };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
+        if (message.startsWith('COOLDOWN:')) {
+          const sec = parseInt(message.split(':')[1] || '60', 10);
+          this.startCooldown(sec);
+        }
         console.warn('[AdMob] Show Rewarded Video error:', message);
         return {
           rewardEarned: false,
@@ -76,6 +152,10 @@ class AdMobService {
     // Web / Desktop Browser Testing Simulation Fallback
     return new Promise((resolve) => {
       this.showWebTestAdModal((earned) => {
+        if (earned) {
+          // 60 seconds anti-invalid click cooldown to safeguard AdMob account
+          this.startCooldown(ADMOB_COOLDOWN_SECONDS);
+        }
         resolve({
           rewardEarned: earned,
           amount: earned ? 1 : 0,

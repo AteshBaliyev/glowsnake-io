@@ -1,6 +1,14 @@
 export type GameMode = 'offline' | 'online';
 
-export type LanguageCode = 'en' | 'az' | 'tr' | 'ru';
+export type LanguageCode =
+  | 'en'
+  | 'az'
+  | 'es'
+  | 'pt'
+  | 'ru'
+  | 'tr'
+  | 'de'
+  | 'fr';
 
 export type RarityTier =
   | 'common'
@@ -72,7 +80,9 @@ export type MapId =
 
 export type ArenaPatternStyle = 'grid' | 'hex' | 'stars' | 'diamond';
 
-export type LocalizedText = Record<LanguageCode, string>;
+export type LocalizedText = Partial<Record<LanguageCode, string>> & {
+  en: string;
+};
 
 export interface SnakeAbilitySpec {
   id: AbilityId;
