@@ -1172,9 +1172,7 @@ export class SimulationWorld {
   }
 
   public step(dtSec: number, now = Date.now()): void {
-    const dt = Math.min(0.05, Math.max(0.001, dtSec));
-
-    this.rebuildSegmentGrid();
+    const dt = Math.min(0.04, Math.max(0.001, dtSec));
 
     if (now - this.lastMaintainAt > 1000) {
       this.lastMaintainAt = now;
@@ -1205,6 +1203,8 @@ export class SimulationWorld {
       this.collectOrbsForSnake(s, dt, now);
     }
 
+    // Rebuild spatial grid strictly AFTER movement so collisions and queries use exact current coordinates!
+    this.rebuildSegmentGrid();
     this.resolveCollisions(now);
 
     if (now - this.lastRankSortAt > 220) {
@@ -1664,30 +1664,39 @@ export class SimulationWorld {
 
     s.speed = speed;
 
-    s.x += (Math.cos(s.angle) * speed + s.vx) * dt;
-    s.y += (Math.sin(s.angle) * speed + s.vy) * dt;
-    const damping = Math.pow(0.04, dt);
-    s.vx *= damping;
-    s.vy *= damping;
-
     const spacing = s.radius * 0.72;
-    if (s.segments.length === 0) {
-      s.segments.push({ x: s.x, y: s.y });
-    } else {
-      s.segments[0].x = s.x;
-      s.segments[0].y = s.y;
-    }
 
-    // FIXED: Pull-only trailing kinematics — prevents segments from telescoping backward or freezing when radius grows!
-    for (let i = 1; i < s.segments.length; i++) {
-      const prev = s.segments[i - 1];
-      const curr = s.segments[i];
-      const dx = curr.x - prev.x;
-      const dy = curr.y - prev.y;
-      const d = Math.hypot(dx, dy);
-      if (d > spacing) {
-        curr.x = prev.x + (dx / d) * spacing;
-        curr.y = prev.y + (dy / d) * spacing;
+    // High-speed physics sub-stepping: at boost / high speeds (>250 px/s), run 2 sub-steps
+    // to keep segment spacing and trailing constraints completely fluid and eliminate discrete segment jumping!
+    const subSteps = s.isBoosting || speed > 250 ? 2 : 1;
+    const subDt = dt / subSteps;
+    const stepSpeed = speed;
+
+    for (let step = 0; step < subSteps; step++) {
+      s.x += (Math.cos(s.angle) * stepSpeed + s.vx) * subDt;
+      s.y += (Math.sin(s.angle) * stepSpeed + s.vy) * subDt;
+      const damping = Math.pow(0.04, subDt);
+      s.vx *= damping;
+      s.vy *= damping;
+
+      if (s.segments.length === 0) {
+        s.segments.push({ x: s.x, y: s.y });
+      } else {
+        s.segments[0].x = s.x;
+        s.segments[0].y = s.y;
+      }
+
+      // FIXED: Pull-only trailing kinematics — prevents segments from telescoping backward or freezing when radius grows!
+      for (let i = 1; i < s.segments.length; i++) {
+        const prev = s.segments[i - 1];
+        const curr = s.segments[i];
+        const dx = curr.x - prev.x;
+        const dy = curr.y - prev.y;
+        const d = Math.hypot(dx, dy);
+        if (d > spacing) {
+          curr.x = prev.x + (dx / d) * spacing;
+          curr.y = prev.y + (dy / d) * spacing;
+        }
       }
     }
 

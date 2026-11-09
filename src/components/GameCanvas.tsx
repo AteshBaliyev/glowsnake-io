@@ -287,7 +287,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     let cachedTotalPlayers = 296;
 
     const frame = (perfNow: number) => {
-      const dtSec = Math.min(0.05, Math.max(0.001, (perfNow - lastFrameMs) / 1000));
+      // Clamped cleanly to prevent large discrete leaps if browser drops a frame
+      const dtSec = Math.min(0.033, Math.max(0.001, (perfNow - lastFrameMs) / 1000));
       lastFrameMs = perfNow;
 
       framesInSec++;

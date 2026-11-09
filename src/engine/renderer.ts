@@ -273,12 +273,18 @@ export class ArenaRenderer {
   private camX = 0;
   private camY = 0;
   private camZoom = 0.67;
+  private smoothScore = 0;
+  private lookAheadOffsetX = 0;
+  private lookAheadOffsetY = 0;
   private initializedCam = false;
 
   public resetCamera(x = 0, y = 0): void {
     this.camX = x;
     this.camY = y;
     this.camZoom = 0.67;
+    this.smoothScore = 0;
+    this.lookAheadOffsetX = 0;
+    this.lookAheadOffsetY = 0;
     this.initializedCam = false;
     this.particles = [];
   }
@@ -338,27 +344,42 @@ export class ArenaRenderer {
     const me = snapshot.snakes.find((s) => s.id === myId);
 
     if (me) {
-      let targetCamX = me.x;
-      let targetCamY = me.y;
-      if (renderOptions?.lookAhead) {
-        const lookDist = 180;
-        targetCamX += Math.cos(me.angle) * lookDist;
-        targetCamY += Math.sin(me.angle) * lookDist;
+      if (!this.initializedCam) {
+        this.camX = me.x;
+        this.camY = me.y;
+        this.smoothScore = me.score;
+        this.initializedCam = true;
       }
 
-      if (!this.initializedCam) {
-        this.camX = targetCamX;
-        this.camY = targetCamY;
-        this.initializedCam = true;
+      if (renderOptions?.lookAhead) {
+        const lookDist = 140;
+        const targetOffsetX = Math.cos(me.angle) * lookDist;
+        const targetOffsetY = Math.sin(me.angle) * lookDist;
+        const offsetLerp = Math.min(1, dtSec * 5.0);
+        this.lookAheadOffsetX += (targetOffsetX - this.lookAheadOffsetX) * offsetLerp;
+        this.lookAheadOffsetY += (targetOffsetY - this.lookAheadOffsetY) * offsetLerp;
+        this.camX = me.x + this.lookAheadOffsetX;
+        this.camY = me.y + this.lookAheadOffsetY;
       } else {
-        const lerp = Math.min(1, dtSec * 8.5);
-        this.camX += (targetCamX - this.camX) * lerp;
-        this.camY += (targetCamY - this.camY) * lerp;
+        // Direct 1:1 camera lock to player head!
+        // Anchors the head rock-solid at viewport center — zero judder, zero "kare-kare" lag!
+        this.lookAheadOffsetX = 0;
+        this.lookAheadOffsetY = 0;
+        this.camX = me.x;
+        this.camY = me.y;
       }
 
       // Tactical field of view: 1.5x wider base view (0.67) so players detect rivals from afar
       const baseZoom = 0.67;
-      const scoreZoom = baseZoom / Math.pow(1 + Math.sqrt(me.score) * 0.022, 0.55);
+      if (this.smoothScore <= 0) {
+        this.smoothScore = me.score;
+      } else {
+        // High inertia against short-term boost score drain so zoom doesn't pump or jitter
+        const diff = me.score - this.smoothScore;
+        const rate = diff > 0 ? 0.85 : 0.12;
+        this.smoothScore += diff * Math.min(1, dtSec * rate);
+      }
+      const scoreZoom = baseZoom / Math.pow(1 + Math.sqrt(this.smoothScore) * 0.022, 0.55);
       const sizeZoom = Math.max(0.24, scoreZoom);
       const wideBonus = timeMs < me.wideViewUntil ? 0.8 : 1;
       const desiredZoom = sizeZoom * wideBonus;
