@@ -134,17 +134,17 @@ export class SimulationWorld {
       // ~300 active snakes across the 3x giant arena
       this.targetPopulation =
         config.targetTotalPopulation ?? Math.floor(290 + Math.random() * 16);
-      this.maxAmbientOrbs = 14500;
-      this.maxCores = 115;
-      this.maxLootOrbs = 12000;
+      this.maxAmbientOrbs = 43500; // 3x increased orb density for rich glowing arena
+      this.maxCores = 345;
+      this.maxLootOrbs = 25000;
     } else {
       this.worldHalfSize = this.map.onlineHalfSize;
       // ~300 active global snakes in Online arena
       this.targetPopulation =
         config.targetTotalPopulation ?? Math.floor(288 + Math.random() * 18);
-      this.maxAmbientOrbs = 13500;
-      this.maxCores = 105;
-      this.maxLootOrbs = 11000;
+      this.maxAmbientOrbs = 40500; // 3x increased orb density
+      this.maxCores = 315;
+      this.maxLootOrbs = 25000;
     }
 
     this.seedInitialOrbs();
@@ -598,6 +598,90 @@ export class SimulationWorld {
       botTier: tier,
       initialScore: initScore,
     });
+  }
+
+  public getHumanPlayer(): SnakeEntity | undefined {
+    for (const s of this.snakes.values()) {
+      if (!s.isBot && s.alive) return s;
+    }
+    return undefined;
+  }
+
+  private spawnBotNearPlayer(human: SnakeEntity, usedNames?: Set<string>): void {
+    const namePool = UNIFIED_BOT_NAMES;
+    let chosenName = namePool[Math.floor(Math.random() * namePool.length)].trim();
+    if (usedNames && usedNames.has(chosenName)) {
+      chosenName = `${chosenName}_${Math.floor(1 + Math.random() * 99)}`;
+    }
+    usedNames?.add(chosenName);
+
+    const r = Math.random();
+    const tier: BotSkillTier = r < 0.28 ? 'weak' : r < 0.72 ? 'normal' : 'strong';
+    const initScore = Math.floor(35 + Math.random() * 420);
+    const pool = tier === 'strong' ? SNAKE_TYPES.slice(25, 65) : SNAKE_TYPES.slice(0, 35);
+    const pickedSnake = pool[Math.floor(Math.random() * pool.length)] || SNAKE_TYPES[0];
+
+    // Tactical perimeter around player: 980px to 1320px (just off the visible screen edge)
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 980 + Math.random() * 340;
+    const bound = this.worldHalfSize - 400;
+    const px = Math.max(-bound, Math.min(bound, human.x + Math.cos(angle) * dist));
+    const py = Math.max(-bound, Math.min(bound, human.y + Math.sin(angle) * dist));
+
+    // Direction pointing towards the player's sector with slight organic variation
+    const toPlayerAngle = Math.atan2(human.y - py, human.x - px) + (Math.random() - 0.5) * 0.45;
+
+    const id = this.nextId('s');
+    const radius = this.computeRadius(initScore);
+    const segCount = this.computeSegmentCount(initScore);
+    const spacing = radius * 0.72;
+
+    const segments = [];
+    for (let i = 0; i < segCount; i++) {
+      segments.push({
+        x: px - Math.cos(toPlayerAngle) * spacing * i,
+        y: py - Math.sin(toPlayerAngle) * spacing * i,
+      });
+    }
+
+    const now = Date.now();
+    const snake: SnakeEntity = {
+      id,
+      name: chosenName.slice(0, 18),
+      snakeTypeId: pickedSnake.id,
+      isBot: true,
+      botTier: tier,
+      x: px,
+      y: py,
+      vx: 0,
+      vy: 0,
+      angle: toPlayerAngle,
+      targetAngle: toPlayerAngle,
+      speed: BASE_SPEED,
+      score: initScore,
+      peakScore: initScore,
+      totalCollected: initScore,
+      kills: 0,
+      radius,
+      alive: true,
+      spawnedAt: now,
+      isBoosting: false,
+      segments,
+      bestRank: 999,
+      abilityCooldownUntil: now + 4000,
+      abilityActiveUntil: 0,
+      activeEffect: null,
+      stealthUntil: 0,
+      shieldUntil: 0,
+      phaseUntil: 0,
+      slowedUntil: 0,
+      magnetUntil: 0,
+      wideViewUntil: 0,
+      doubleScoreUntil: 0,
+      freeBoostUntil: 0,
+      webbedUntil: 0,
+    };
+    this.snakes.set(id, snake);
   }
 
   public removeSnake(id: string): void {
@@ -1314,15 +1398,33 @@ export class SimulationWorld {
         }
       }
     }
+
+    // Ensure player has at least 1-2 active bot snakes in nearby perimeter (within 1400px)
+    const human = this.getHumanPlayer();
+    if (human && !initialSeed) {
+      let botsNearby = 0;
+      let closestBotDist = Infinity;
+      for (const s of this.snakes.values()) {
+        if (s.alive && s.isBot && !s.isDecoy) {
+          const d = Math.hypot(s.x - human.x, s.y - human.y);
+          if (d < 1400) botsNearby++;
+          if (d < closestBotDist) closestBotDist = d;
+        }
+      }
+
+      if (botsNearby < 1 || closestBotDist > 1400) {
+        this.spawnBotNearPlayer(human, usedNames);
+      }
+    }
     void now;
   }
 
   private maintainOrbs(): void {
-    const deficit = Math.min(350, this.maxAmbientOrbs - this.ambientOrbCount);
+    const deficit = Math.min(1000, this.maxAmbientOrbs - this.ambientOrbCount);
     for (let i = 0; i < deficit; i++) {
       this.spawnAmbientOrb();
     }
-    const coreDeficit = Math.min(12, this.maxCores - this.coreOrbCount);
+    const coreDeficit = Math.min(30, this.maxCores - this.coreOrbCount);
     for (let i = 0; i < coreDeficit; i++) {
       this.spawnCoreOrb();
     }
@@ -2093,6 +2195,24 @@ export class SimulationWorld {
     let huntTargetScore = -Infinity;
     let closestEnemyHeadDist = Infinity;
 
+    // Direct Player Awareness: Scan human player position so bots actively seek and interact with the player!
+    const humanPlayer = this.getHumanPlayer();
+    let distToHuman = Infinity;
+    if (humanPlayer && humanPlayer.alive && now >= humanPlayer.stealthUntil) {
+      distToHuman = Math.hypot(humanPlayer.x - bot.x, humanPlayer.y - bot.y);
+      if (distToHuman < closestEnemyHeadDist) {
+        closestEnemyHeadDist = distToHuman;
+      }
+      // If Strong or Titan hunter, actively target human player from a larger distance (up to 850px)!
+      if ((tier === 'strong' || tier === 'titan') && distToHuman < 850 && bot.score >= 35) {
+        const scoreVal = (950 - distToHuman) + 260;
+        if (scoreVal > huntTargetScore) {
+          huntTargetScore = scoreVal;
+          huntTarget = humanPlayer;
+        }
+      }
+    }
+
     for (let i = 0; i < nearSegs.length; i++) {
       const ref = nearSegs[i];
       if (!ref.isHead) continue;
@@ -2176,6 +2296,15 @@ export class SimulationWorld {
           closestEnemyHeadDist < 420 &&
           Math.random() < (tier === 'titan' ? 0.68 : 0.52);
       }
+    } else if (bestLootOrb && (bestLootOrb.value >= 4 || !humanPlayer || distToHuman > 1850)) {
+      desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
+      wantsBoost = false;
+    } else if (humanPlayer && distToHuman < 1850 && distToHuman > 260) {
+      // Natural approach towards player: Bots gravitate towards the player's sector!
+      const angleToPlayer = Math.atan2(humanPlayer.y - bot.y, humanPlayer.x - bot.x);
+      const wander = (Math.random() - 0.5) * (tier === 'weak' ? 0.65 : 0.35);
+      desiredAngle = angleToPlayer + wander;
+      wantsBoost = tier === 'strong' && distToHuman < 700 && Math.random() < 0.45;
     } else if (bestLootOrb) {
       desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
       wantsBoost = false;
