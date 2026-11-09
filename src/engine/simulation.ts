@@ -22,7 +22,7 @@ import {
 const BASE_SEGMENTS = 14;
 const MAX_SEGMENTS = 235;
 const BASE_RADIUS = 13;
-const BASE_SPEED = 192;
+const BASE_SPEED = 212; // +10% increased default snake speed
 const BOOST_MULTIPLIER = 1.66;
 
 const UNIFIED_BOT_NAMES: string[] = Array.from(
@@ -118,6 +118,7 @@ export class SimulationWorld {
   private idCounter = 1;
   private lastMaintainAt = 0;
   private lastRankSortAt = 0;
+  private stepCounter = 0;
   private boostDrainAccum: Map<string, number> = new Map();
   private trailSpawnAccum: Map<string, number> = new Map();
   private passiveScoreAccum: Map<string, number> = new Map();
@@ -134,17 +135,17 @@ export class SimulationWorld {
       // ~300 active snakes across the 3x giant arena
       this.targetPopulation =
         config.targetTotalPopulation ?? Math.floor(290 + Math.random() * 16);
-      this.maxAmbientOrbs = 43500; // 3x increased orb density for rich glowing arena
-      this.maxCores = 345;
-      this.maxLootOrbs = 25000;
+      this.maxAmbientOrbs = 12500; // Optimized high-density ambient food without mobile GC stutter
+      this.maxCores = 280;
+      this.maxLootOrbs = 4500;
     } else {
       this.worldHalfSize = this.map.onlineHalfSize;
       // ~300 active global snakes in Online arena
       this.targetPopulation =
         config.targetTotalPopulation ?? Math.floor(288 + Math.random() * 18);
-      this.maxAmbientOrbs = 40500; // 3x increased orb density
-      this.maxCores = 315;
-      this.maxLootOrbs = 25000;
+      this.maxAmbientOrbs = 12000;
+      this.maxCores = 260;
+      this.maxLootOrbs = 4500;
     }
 
     this.seedInitialOrbs();
@@ -1281,10 +1282,37 @@ export class SimulationWorld {
     this.updateContinuousAbilities(dt, now);
     this.updateHazards(dt, now);
 
+    this.stepCounter = (this.stepCounter + 1) % 60;
+
+    // Detect player position to optimize faraway bot computation
+    let playerX = 0;
+    let playerY = 0;
+    let hasPlayer = false;
+    for (const s of this.snakes.values()) {
+      if (!s.isBot && s.alive) {
+        playerX = s.x;
+        playerY = s.y;
+        hasPlayer = true;
+        break;
+      }
+    }
+
+    let bIdx = 0;
     for (const s of this.snakes.values()) {
       if (!s.alive) continue;
       this.moveSnake(s, dt, now);
-      this.collectOrbsForSnake(s, dt, now);
+
+      // Player and snakes near the screen always collect orbs every frame.
+      // Distant bots off-screen interleave collection to eliminate lag and GC pressure.
+      if (!s.isBot) {
+        this.collectOrbsForSnake(s, dt, now);
+      } else {
+        bIdx++;
+        const isNear = hasPlayer && Math.hypot(s.x - playerX, s.y - playerY) < 2400;
+        if (isNear || (this.stepCounter + bIdx) % 4 === 0) {
+          this.collectOrbsForSnake(s, dt, now);
+        }
+      }
     }
 
     // Rebuild spatial grid strictly AFTER movement so collisions and queries use exact current coordinates!

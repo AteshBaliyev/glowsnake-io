@@ -126,10 +126,20 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     inputAngleRef.current = spawned.angle;
     renderer.resetCamera(spawned.x, spawned.y);
 
+    const isMobileDevice =
+      typeof window !== 'undefined' &&
+      ('ontouchstart' in window ||
+        navigator.maxTouchPoints > 0 ||
+        /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent));
+
+    const getOptimalDpr = () => {
+      if (!profileRef.current.bestGraphics) return 1;
+      const rawDpr = window.devicePixelRatio || 1;
+      return isMobileDevice ? Math.min(1.25, rawDpr) : Math.min(2, rawDpr);
+    };
+
     const updateCanvasSize = () => {
-      const dpr = profileRef.current.bestGraphics
-        ? Math.min(2, window.devicePixelRatio || 1)
-        : 1;
+      const dpr = getOptimalDpr();
       canvas.width = window.innerWidth * dpr;
       canvas.height = window.innerHeight * dpr;
     };
@@ -385,9 +395,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         });
       }
 
-      const dpr = profileRef.current.bestGraphics
-        ? Math.min(2, window.devicePixelRatio || 1)
-        : 1;
+      const dpr = getOptimalDpr();
       const cssW = window.innerWidth;
       const cssH = window.innerHeight;
       ctx.save();

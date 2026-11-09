@@ -117,13 +117,15 @@ export function drawSnakeSegments(
         ctx.lineWidth = 1.4;
         ctx.stroke();
 
-        ctx.save();
-        ctx.translate(seg.x, seg.y);
-        ctx.rotate(Math.PI / 4);
-        const d = segR * 0.48;
+        const hd = segR * 0.36;
+        ctx.beginPath();
+        ctx.moveTo(seg.x, seg.y - hd);
+        ctx.lineTo(seg.x + hd, seg.y);
+        ctx.lineTo(seg.x, seg.y + hd);
+        ctx.lineTo(seg.x - hd, seg.y);
+        ctx.closePath();
         ctx.fillStyle = spec.accentColor;
-        ctx.fillRect(-d / 2, -d / 2, d, d);
-        ctx.restore();
+        ctx.fill();
       } else if (rarity === 'legendary') {
         // Luxury metallic rim + inner jewel
         ctx.strokeStyle = spec.trimColor;
@@ -277,6 +279,7 @@ export class ArenaRenderer {
   private lookAheadOffsetX = 0;
   private lookAheadOffsetY = 0;
   private initializedCam = false;
+  private orbBatchMap: Map<string, Orb[]> = new Map();
 
   public resetCamera(x = 0, y = 0): void {
     this.camX = x;
@@ -614,26 +617,47 @@ export class ArenaRenderer {
     timeMs: number,
     wiggling = true
   ): void {
-    const minX = this.camX - viewHalfW;
-    const maxX = this.camX + viewHalfW;
-    const minY = this.camY - viewHalfH;
-    const maxY = this.camY + viewHalfH;
+    const minX = this.camX - viewHalfW - 25;
+    const maxX = this.camX + viewHalfW + 25;
+    const minY = this.camY - viewHalfH - 25;
+    const maxY = this.camY + viewHalfH + 25;
+
+    // Reset reusable buckets without re-allocating memory
+    for (const arr of this.orbBatchMap.values()) {
+      arr.length = 0;
+    }
 
     for (let i = 0; i < orbs.length; i++) {
       const orb = orbs[i];
       if (orb.x < minX || orb.x > maxX || orb.y < minY || orb.y > maxY) continue;
-      ctx.beginPath();
-      if (wiggling) {
-        const bob = Math.sin(timeMs * 0.005 + (orb.x % 19)) * 1.5;
-        const pulseR = Math.max(
-          2.5,
-          orb.radius + Math.sin(timeMs * 0.004 + (orb.y % 13)) * 0.7
-        );
-        ctx.arc(orb.x + bob, orb.y, pulseR, 0, Math.PI * 2);
-      } else {
-        ctx.arc(orb.x, orb.y, orb.radius, 0, Math.PI * 2);
+      let bucket = this.orbBatchMap.get(orb.color);
+      if (!bucket) {
+        bucket = [];
+        this.orbBatchMap.set(orb.color, bucket);
       }
-      ctx.fillStyle = orb.color;
+      bucket.push(orb);
+    }
+
+    // High performance batched path execution (calls fill() only once per distinct color!)
+    for (const [color, bucket] of this.orbBatchMap) {
+      if (bucket.length === 0) continue;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      for (let j = 0; j < bucket.length; j++) {
+        const orb = bucket[j];
+        if (wiggling) {
+          const bob = Math.sin(timeMs * 0.005 + (orb.x % 19)) * 1.5;
+          const pulseR = Math.max(
+            2.5,
+            orb.radius + Math.sin(timeMs * 0.004 + (orb.y % 13)) * 0.7
+          );
+          ctx.moveTo(orb.x + bob + pulseR, orb.y);
+          ctx.arc(orb.x + bob, orb.y, pulseR, 0, Math.PI * 2);
+        } else {
+          ctx.moveTo(orb.x + orb.radius, orb.y);
+          ctx.arc(orb.x, orb.y, orb.radius, 0, Math.PI * 2);
+        }
+      }
       ctx.fill();
     }
   }
