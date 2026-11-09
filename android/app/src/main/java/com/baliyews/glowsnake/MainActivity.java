@@ -14,7 +14,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        registerPlugin(AppodealPlugin.class);
+        registerPlugin(AdMobPlugin.class);
         applyDisplayCutoutMode();
         super.onCreate(savedInstanceState);
         if (getBridge() != null && getBridge().getWebView() != null) {

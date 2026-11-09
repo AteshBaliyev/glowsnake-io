@@ -10,7 +10,7 @@ import {
   getTodayDateKey,
   isSnakeUnlocked,
 } from '@/engine/storage';
-import { appodealService } from '@/services/appodealService';
+import { admobService } from '@/services/admobService';
 import {
   LanguageCode,
   PlayerProfile,
@@ -221,11 +221,11 @@ export const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({
       return;
     }
 
-    // Extra spin via Appodeal Rewarded Video Ad
+    // Extra spin via Google AdMob Rewarded Video Ad
     setIsAdLoading(true);
     setAdError(null);
     try {
-      const res = await appodealService.showRewardedVideo();
+      const res = await admobService.showRewardedVideo();
       setIsAdLoading(false);
       if (res.rewardEarned) {
         executeWheelSpin(false);

@@ -18,7 +18,7 @@ import {
   MAX_PLAYER_LEVEL,
   xpForLevel,
 } from '@/engine/storage';
-import { appodealService } from '@/services/appodealService';
+import { admobService } from '@/services/admobService';
 import {
   ArenaPatternStyle,
   LanguageCode,
@@ -157,7 +157,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
     setIsWatchingAd(true);
     setAdToast(null);
     try {
-      const res = await appodealService.showRewardedVideo();
+      const res = await admobService.showRewardedVideo();
       setIsWatchingAd(false);
       if (res.rewardEarned) {
         soundEngine.playLevelUp();
@@ -323,16 +323,15 @@ export const StartMenu: React.FC<StartMenuProps> = ({
         </div>
       </header>
 
-      {/* CENTER: Official Logo, Nickname & Play Button */}
+      {/* CENTER: Animated Slithering Snake, Title, Nickname & Play Button */}
       <main className="relative z-10 my-auto mx-auto w-full max-w-[270px] sm:max-w-sm flex flex-col items-center text-center py-0.5 shrink-0">
-        <div className="mb-2">
-          <img
-            src="/logo.png"
-            alt="GlowSnake.io"
-            draggable={false}
-            className="h-24 w-24 sm:h-32 sm:w-32 rounded-2xl object-cover border border-emerald-400/25 shadow-[0_0_28px_rgba(16,185,129,0.28)]"
-          />
+        <div className="mb-0.5">
+          <SnakePreviewCanvas snake={selectedSnake} width={150} height={42} />
         </div>
+
+        <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white mb-1 sm:mb-2">
+          GlowSnake.io
+        </h1>
 
         <form onSubmit={handlePlay} className="w-full space-y-1.5 sm:space-y-2">
           {/* Nickname */}
