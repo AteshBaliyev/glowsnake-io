@@ -709,47 +709,47 @@ export const SNAKE_TYPES: SnakeTypeSpec[] = RAW_100_SNAKES.map((row, arrayIdx) =
     abilityId,
   ] = row;
 
-  // Escalating power from Snake #1 to Snake #100 (Snake #1 buffed to #30 power tier for starter delight!)
+  // Escalating power from Snake #1 to Snake #100 (Snake #1 tuned to 1.15x starter balance)
   const lateBoost = index >= 90 ? (index - 89) * 0.055 : 0;
   const powerRating =
     index === 100
       ? 1000
       : index === 1
-      ? 32
+      ? 18
       : Math.round(12 + curve * 860 + (index >= 89 ? (index - 88) * 10 : 0));
 
   const scoreMultiplier =
     index === 100
       ? 3.2
       : index === 1
-      ? 1.45
+      ? 1.15
       : Number((1.0 + curve * 1.65 + lateBoost).toFixed(2));
 
   const passiveMagnetBonus =
     index === 100
       ? 96
       : index === 1
-      ? 36
+      ? 16
       : Math.round(progress * 68 + (index >= 89 ? (index - 88) * 2.2 : 0));
 
   const boostEfficiency =
     index === 100
       ? 0.9
       : index === 1
-      ? 0.35
+      ? 0.15
       : Number(Math.min(0.88, progress * 0.78 + (index >= 89 ? 0.08 : 0)).toFixed(2));
 
   const speedStat =
     index === 1
-      ? 14
+      ? 9
       : Math.min(28, Math.round(7 + progress * 17 + (index >= 95 ? (index - 94) * 0.8 : 0)));
   const turnStat =
     index === 1
-      ? 12
+      ? 8
       : Math.min(20, Math.round(7 + progress * 11 + (index >= 95 ? 2 : 0)));
   const controlStat =
     index === 1
-      ? 12
+      ? 8
       : Math.min(20, Math.round(7 + progress * 11 + (index >= 95 ? 2 : 0)));
 
   const tpl = ABILITY_TEMPLATES[abilityId];

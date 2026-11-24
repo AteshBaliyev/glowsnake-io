@@ -23,8 +23,8 @@ import {
 const BASE_SEGMENTS = 14;
 const MAX_SEGMENTS = 235;
 const BASE_RADIUS = 13;
-const BASE_SPEED = 318; // 1.5x boosted default snake speed
-const BOOST_MULTIPLIER = 1.72;
+const BASE_SPEED = 244; // 1.15x default snake speed
+const BOOST_MULTIPLIER = 1.70;
 
 const UNIFIED_BOT_NAMES: string[] = Array.from(
   new Set([...INTERNATIONAL_ONLINE_NAMES, ...PLAYER_LIKE_NAMES])
@@ -1854,7 +1854,7 @@ export class SimulationWorld {
     const effectiveSpeedBonus = s.isBot
       ? Math.min(48, (spec.speedStat - 7) * 3.2)
       : (spec.speedStat - 7) * 6.0;
-    const baseSnakeSpeed = s.isBot ? BASE_SPEED * 0.94 : BASE_SPEED * 1.15;
+    const baseSnakeSpeed = s.isBot ? BASE_SPEED * 0.96 : BASE_SPEED * 1.08;
     let speed = baseSnakeSpeed + effectiveSpeedBonus;
 
     const freeBoost = now < s.freeBoostUntil;
