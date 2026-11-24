@@ -567,7 +567,7 @@ type RawSnakeEntry = [
 // Exact 100 progressively stronger snakes (#1 -> #100)
 const RAW_100_SNAKES: RawSnakeEntry[] = [
   // ==================== 1 - 25: COMMON (ADİ) ====================
-  ['swift-viper', 'Swift Viper', 'Agile Starter', 'Çevik Başlanğıc', 'Çevik Başlangıç', 'Быстрый Старт', '#3b82f6', '#1d4ed8', '#93c5fd', '#60a5fa', '#ffffff', 'quick_dash'],
+  ['swift-viper', 'Swift Viper', 'Pellet Magnet (Enhanced)', 'Yem Ovçusu (Gücləndirilmiş)', 'Yem Avcısı (Güçlendirilmiş)', 'Ловец Еды (Усиленный)', '#3b82f6', '#1d4ed8', '#93c5fd', '#60a5fa', '#ffffff', 'food_magnet'],
   ['moss-fang', 'Moss Cobra', 'Toxic Tracker', 'Zəhər İzləyici', 'Zehir İzleyici', 'Лесная Кобра', '#22c55e', '#15803d', '#86efac', '#4ade80', '#ffffff', 'venom_trail'],
   ['coral-magnet', 'Coral Seeker', 'Pellet Gatherer', 'Yem Toplayan', 'Yem Toplayıcı', 'Собиратель', '#f43f5e', '#be123c', '#fda4af', '#fb7185', '#ffffff', 'food_magnet'],
   ['slate-guard', 'Iron Scale', 'Sturdy Defender', 'Zirehli Müdafiəçi', 'Zırhlı Savunmacı', 'Стальной Щит', '#64748b', '#334155', '#cbd5e1', '#94a3b8', '#ffffff', 'armor_shield'],
@@ -709,31 +709,48 @@ export const SNAKE_TYPES: SnakeTypeSpec[] = RAW_100_SNAKES.map((row, arrayIdx) =
     abilityId,
   ] = row;
 
-  // Escalating power from Snake #1 to Snake #100 (especially 90-100!)
+  // Escalating power from Snake #1 to Snake #100 (Snake #1 buffed to #30 power tier for starter delight!)
   const lateBoost = index >= 90 ? (index - 89) * 0.055 : 0;
   const powerRating =
     index === 100
       ? 1000
+      : index === 1
+      ? 32
       : Math.round(12 + curve * 860 + (index >= 89 ? (index - 88) * 10 : 0));
 
   const scoreMultiplier =
     index === 100
       ? 3.2
+      : index === 1
+      ? 1.45
       : Number((1.0 + curve * 1.65 + lateBoost).toFixed(2));
 
   const passiveMagnetBonus =
     index === 100
       ? 96
+      : index === 1
+      ? 36
       : Math.round(progress * 68 + (index >= 89 ? (index - 88) * 2.2 : 0));
 
   const boostEfficiency =
     index === 100
       ? 0.9
+      : index === 1
+      ? 0.35
       : Number(Math.min(0.88, progress * 0.78 + (index >= 89 ? 0.08 : 0)).toFixed(2));
 
-  const speedStat = Math.min(28, Math.round(7 + progress * 17 + (index >= 95 ? (index - 94) * 0.8 : 0)));
-  const turnStat = Math.min(20, Math.round(7 + progress * 11 + (index >= 95 ? 2 : 0)));
-  const controlStat = Math.min(20, Math.round(7 + progress * 11 + (index >= 95 ? 2 : 0)));
+  const speedStat =
+    index === 1
+      ? 14
+      : Math.min(28, Math.round(7 + progress * 17 + (index >= 95 ? (index - 94) * 0.8 : 0)));
+  const turnStat =
+    index === 1
+      ? 12
+      : Math.min(20, Math.round(7 + progress * 11 + (index >= 95 ? 2 : 0)));
+  const controlStat =
+    index === 1
+      ? 12
+      : Math.min(20, Math.round(7 + progress * 11 + (index >= 95 ? 2 : 0)));
 
   const tpl = ABILITY_TEMPLATES[abilityId];
   // Higher index snakes get faster cooldowns and longer ability durations!

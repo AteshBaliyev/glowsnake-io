@@ -23,8 +23,8 @@ import {
 const BASE_SEGMENTS = 14;
 const MAX_SEGMENTS = 235;
 const BASE_RADIUS = 13;
-const BASE_SPEED = 212; // +10% increased default snake speed
-const BOOST_MULTIPLIER = 1.66;
+const BASE_SPEED = 318; // 1.5x boosted default snake speed
+const BOOST_MULTIPLIER = 1.72;
 
 const UNIFIED_BOT_NAMES: string[] = Array.from(
   new Set([...INTERNATIONAL_ONLINE_NAMES, ...PLAYER_LIKE_NAMES])
@@ -122,11 +122,38 @@ export class SimulationWorld {
   private stepCounter = 0;
   private orbPool: Orb[] = [];
   private segmentPool: Point2D[] = [];
+  private segRefPool: SegRef[] = [];
   private boostDrainAccum: Map<string, number> = new Map();
   private trailSpawnAccum: Map<string, number> = new Map();
   private passiveScoreAccum: Map<string, number> = new Map();
   private botNextDecisionAt: Map<string, number> = new Map();
   private botGreedMode: Map<string, boolean> = new Map();
+  private humanPlayerId: string | null = null;
+
+  private acquireSegRef(
+    snake: SnakeEntity,
+    x: number,
+    y: number,
+    isHead: boolean,
+    segIndex: number
+  ): SegRef {
+    const r = this.segRefPool.pop();
+    if (r) {
+      r.snake = snake;
+      r.x = x;
+      r.y = y;
+      r.isHead = isHead;
+      r.segIndex = segIndex;
+      return r;
+    }
+    return { snake, x, y, isHead, segIndex };
+  }
+
+  private releaseSegRef(r: SegRef): void {
+    if (this.segRefPool.length < 6000) {
+      this.segRefPool.push(r);
+    }
+  }
 
   private acquireSegment(x: number, y: number): Point2D {
     const p = this.segmentPool.pop();
@@ -180,20 +207,20 @@ export class SimulationWorld {
 
     if (config.mode === 'offline') {
       this.worldHalfSize = this.map.offlineHalfSize;
-      // ~300 active snakes across the 3x giant arena
+      // ~300 active snakes across the giant arena
       this.targetPopulation =
         config.targetTotalPopulation ?? Math.floor(290 + Math.random() * 16);
-      this.maxAmbientOrbs = 12500; // Optimized high-density ambient food without mobile GC stutter
-      this.maxCores = 280;
-      this.maxLootOrbs = 4500;
+      this.maxAmbientOrbs = 48000; // 4x Increased Food Orbs everywhere across the map
+      this.maxCores = 850;
+      this.maxLootOrbs = 8000;
     } else {
       this.worldHalfSize = this.map.onlineHalfSize;
       // ~300 active global snakes in Online arena
       this.targetPopulation =
         config.targetTotalPopulation ?? Math.floor(288 + Math.random() * 18);
-      this.maxAmbientOrbs = 12000;
-      this.maxCores = 260;
-      this.maxLootOrbs = 4500;
+      this.maxAmbientOrbs = 48000;
+      this.maxCores = 850;
+      this.maxLootOrbs = 8000;
     }
 
     this.seedInitialOrbs();
@@ -276,10 +303,14 @@ export class SimulationWorld {
     nextBucket.push(orb);
   }
 
-  // Zero-GC pooled segment spatial grid rebuild (~0.4ms for 300 snakes)
+  // Zero-GC pooled segment spatial grid rebuild
   private rebuildSegmentGrid(): void {
     for (let i = 0; i < this.nonEmptySegBuckets.length; i++) {
-      this.nonEmptySegBuckets[i].length = 0;
+      const b = this.nonEmptySegBuckets[i];
+      for (let j = 0; j < b.length; j++) {
+        this.releaseSegRef(b[j]);
+      }
+      b.length = 0;
     }
     this.nonEmptySegBuckets.length = 0;
 
@@ -298,13 +329,7 @@ export class SimulationWorld {
         if (bucket.length === 0) {
           this.nonEmptySegBuckets.push(bucket);
         }
-        bucket.push({
-          snake: s,
-          x: seg.x,
-          y: seg.y,
-          isHead: i === 0,
-          segIndex: i,
-        });
+        bucket.push(this.acquireSegRef(s, seg.x, seg.y, i === 0, i));
       }
     }
   }
@@ -487,18 +512,6 @@ export class SimulationWorld {
     const spacing = radius * 0.72;
 
     const segments: Point2D[] = [];
-    const pathHistory: Point2D[] = [];
-    const totalDist = Math.max(1, (segCount - 1) * spacing);
-    const historyStep = 4;
-    const historyCount = Math.ceil(totalDist / historyStep) + 6;
-    for (let k = 0; k < historyCount; k++) {
-      pathHistory.push(
-        this.acquireSegment(
-          pos.x - Math.cos(angle) * historyStep * k,
-          pos.y - Math.sin(angle) * historyStep * k
-        )
-      );
-    }
     for (let i = 0; i < segCount; i++) {
       segments.push(
         this.acquireSegment(
@@ -531,7 +544,6 @@ export class SimulationWorld {
       spawnedAt: now,
       isBoosting: false,
       segments,
-      pathHistory,
       abilityCooldownUntil: 0,
       abilityActiveUntil: 0,
       activeEffect: null,
@@ -548,6 +560,9 @@ export class SimulationWorld {
     };
 
     this.snakes.set(id, snake);
+    if (!params.isBot) {
+      this.humanPlayerId = id;
+    }
     return snake;
   }
 
@@ -656,8 +671,15 @@ export class SimulationWorld {
   }
 
   public getHumanPlayer(): SnakeEntity | undefined {
+    if (this.humanPlayerId) {
+      const p = this.snakes.get(this.humanPlayerId);
+      if (p && p.alive && !p.isBot) return p;
+    }
     for (const s of this.snakes.values()) {
-      if (!s.isBot && s.alive) return s;
+      if (!s.isBot && s.alive) {
+        this.humanPlayerId = s.id;
+        return s;
+      }
     }
     return undefined;
   }
@@ -961,9 +983,6 @@ export class SimulationWorld {
   private spawnDecoyClone(snake: SnakeEntity, angleDelta: number, now: number): void {
     const decoyId = this.nextId('decoy');
     const cloneSegs = snake.segments.map((pt) => this.acquireSegment(pt.x, pt.y));
-    const cloneHistory = (snake.pathHistory || []).map((pt) =>
-      this.acquireSegment(pt.x, pt.y)
-    );
     const a = normalizeAngle(snake.angle + angleDelta);
     const decoy: SnakeEntity = {
       ...snake,
@@ -977,7 +996,6 @@ export class SimulationWorld {
       angle: a,
       targetAngle: a,
       segments: cloneSegs,
-      pathHistory: cloneHistory,
       stealthUntil: 0,
       freeBoostUntil: now + 4000,
       spawnedAt: now,
@@ -1527,11 +1545,11 @@ export class SimulationWorld {
   }
 
   private maintainOrbs(): void {
-    const deficit = Math.min(1000, this.maxAmbientOrbs - this.ambientOrbCount);
+    const deficit = Math.min(3000, this.maxAmbientOrbs - this.ambientOrbCount);
     for (let i = 0; i < deficit; i++) {
       this.spawnAmbientOrb();
     }
-    const coreDeficit = Math.min(30, this.maxCores - this.coreOrbCount);
+    const coreDeficit = Math.min(60, this.maxCores - this.coreOrbCount);
     for (let i = 0; i < coreDeficit; i++) {
       this.spawnCoreOrb();
     }
@@ -1832,34 +1850,44 @@ export class SimulationWorld {
       s.angle = normalizeAngle(s.angle + Math.sign(diff) * maxTurn);
     }
 
-    // Progressive speed bonus from Snake #1 -> #100
+    // Progressive speed bonus from Snake #1 -> #100 + Player Advantage over bots
     const effectiveSpeedBonus = s.isBot
-      ? Math.min(45, (spec.speedStat - 7) * 3.2)
-      : (spec.speedStat - 7) * 5.2;
-    let speed = BASE_SPEED + effectiveSpeedBonus;
+      ? Math.min(48, (spec.speedStat - 7) * 3.2)
+      : (spec.speedStat - 7) * 6.0;
+    const baseSnakeSpeed = s.isBot ? BASE_SPEED * 0.94 : BASE_SPEED * 1.15;
+    let speed = baseSnakeSpeed + effectiveSpeedBonus;
 
     const freeBoost = now < s.freeBoostUntil;
     const canBoost =
-      now >= s.webbedUntil && (freeBoost || (s.isBoosting && s.score >= 6));
+      now >= s.webbedUntil && (freeBoost || (s.isBoosting && s.score >= 5));
 
     if (freeBoost) {
-      speed *= 1.75;
+      speed *= BOOST_MULTIPLIER;
     } else if (canBoost && s.isBoosting) {
       speed *= BOOST_MULTIPLIER;
       // High-level snakes enjoy up to 90% less score drain when boosting!
       const eff = s.isBot ? Math.min(0.4, spec.boostEfficiency) : spec.boostEfficiency;
-      const drainRate = 6 * (1 - eff);
+      const drainRate = 7 * (1 - eff);
       const drain = (this.boostDrainAccum.get(s.id) || 0) + dt * drainRate;
-      if (drain >= 2) {
+
+      // Drop glowing food pellets behind ANY boosting snake (bots & player)
+      const prevTrail = (this.trailSpawnAccum.get(s.id) || 0) + dt;
+      if (prevTrail >= 0.11) {
+        this.trailSpawnAccum.set(s.id, 0);
+        const tail = s.segments[s.segments.length - 1] || s;
+        const jx = tail.x + (Math.random() - 0.5) * 8;
+        const jy = tail.y + (Math.random() - 0.5) * 8;
+        const dropVal = Math.max(1, Math.min(5, Math.floor(s.score * 0.005) + 1));
+        this.spawnOrbAt(jx, jy, dropVal, 'loot', spec.primaryColor);
+      } else {
+        this.trailSpawnAccum.set(s.id, prevTrail);
+      }
+
+      if (drain >= 1) {
         const whole = Math.floor(drain);
         this.boostDrainAccum.set(s.id, drain - whole);
-        const actual = Math.min(whole, s.score);
+        const actual = Math.min(whole, Math.max(0, s.score - 5));
         s.score -= actual;
-        const dropVal = Math.floor(actual * 0.5);
-        if (dropVal >= 1 && Math.random() < 0.6) {
-          const tail = s.segments[s.segments.length - 1] || s;
-          this.spawnOrbAt(tail.x, tail.y, dropVal, 'loot', spec.primaryColor);
-        }
       } else {
         this.boostDrainAccum.set(s.id, drain);
       }
@@ -1875,111 +1903,60 @@ export class SimulationWorld {
 
     const spacing = s.radius * 0.72;
 
-    // Head movement with delta-time
-    s.x += (Math.cos(s.angle) * speed + s.vx) * dt;
-    s.y += (Math.sin(s.angle) * speed + s.vy) * dt;
-    const damping = Math.pow(0.04, dt);
-    s.vx *= damping;
-    s.vy *= damping;
+    // High-speed physics sub-stepping: at boost / high speeds (>260 px/s), run 2 sub-steps
+    // to keep segment spacing and trailing constraints completely fluid and eliminate discrete segment jumping!
+    const subSteps = s.isBoosting || speed > 260 ? 2 : 1;
+    const subDt = dt / subSteps;
+    const stepSpeed = speed;
 
-    // Ensure pathHistory exists
-    if (!s.pathHistory) {
-      s.pathHistory = [];
-    }
-    const history = s.pathHistory;
+    for (let step = 0; step < subSteps; step++) {
+      s.x += (Math.cos(s.angle) * stepSpeed + s.vx) * subDt;
+      s.y += (Math.sin(s.angle) * stepSpeed + s.vy) * subDt;
+      const damping = Math.pow(0.04, subDt);
+      s.vx *= damping;
+      s.vy *= damping;
 
-    // Add head to pathHistory if distance moved >= 3.5px (or initialize)
-    if (history.length === 0) {
-      history.push(this.acquireSegment(s.x, s.y));
-    } else {
-      const p0 = history[0];
-      const dx = s.x - p0.x;
-      const dy = s.y - p0.y;
-      const moveDist = Math.hypot(dx, dy);
-      if (moveDist >= 3.5) {
-        const steps = Math.min(8, Math.floor(moveDist / 3.5));
-        for (let k = 1; k <= steps; k++) {
-          const t = k / steps;
-          history.unshift(this.acquireSegment(p0.x + dx * t, p0.y + dy * t));
-        }
+      if (s.segments.length === 0) {
+        s.segments.push(this.acquireSegment(s.x, s.y));
       } else {
-        p0.x = s.x;
-        p0.y = s.y;
+        s.segments[0].x = s.x;
+        s.segments[0].y = s.y;
+      }
+
+      // Fluid distance constraint: EVERY segment is strictly locked at 'spacing' distance from prev!
+      // Eliminates freezing, snapping, stuttering, and CPU unshift lag!
+      for (let i = 1; i < s.segments.length; i++) {
+        const prev = s.segments[i - 1];
+        const curr = s.segments[i];
+        const dx = curr.x - prev.x;
+        const dy = curr.y - prev.y;
+        const d = Math.hypot(dx, dy);
+        if (d > 0.0001) {
+          curr.x = prev.x + (dx / d) * spacing;
+          curr.y = prev.y + (dy / d) * spacing;
+        }
       }
     }
 
-    // Ensure desired segment count using segment pooling
+    // Grow or trim segments pool
     const desiredSegs = this.computeSegmentCount(s.score);
     while (s.segments.length < desiredSegs) {
       const last = s.segments[s.segments.length - 1] || s;
-      s.segments.push(this.acquireSegment(last.x, last.y));
+      let dirX = -Math.cos(s.angle);
+      let dirY = -Math.sin(s.angle);
+      if (s.segments.length >= 2) {
+        const prev = s.segments[s.segments.length - 2];
+        const td = Math.hypot(last.x - prev.x, last.y - prev.y);
+        if (td > 0.001) {
+          dirX = (last.x - prev.x) / td;
+          dirY = (last.y - prev.y) / td;
+        }
+      }
+      s.segments.push(this.acquireSegment(last.x + dirX * spacing, last.y + dirY * spacing));
     }
     while (s.segments.length > desiredSegs) {
       const p = s.segments.pop();
       if (p) this.releaseSegment(p);
-    }
-
-    if (s.segments.length > 0) {
-      s.segments[0].x = s.x;
-      s.segments[0].y = s.y;
-    }
-
-    // Arc-length path following: eliminates tail freezing, stuttering and corner cutting!
-    let histIdx = 0;
-    let accumDist = 0;
-    let curP = history[0];
-
-    for (let segIdx = 1; segIdx < s.segments.length; segIdx++) {
-      const targetDist = segIdx * spacing;
-      let matched = false;
-
-      while (histIdx < history.length - 1) {
-        const nextP = history[histIdx + 1];
-        const segD = Math.hypot(nextP.x - curP.x, nextP.y - curP.y);
-        if (accumDist + segD >= targetDist) {
-          const t = segD > 0.0001 ? (targetDist - accumDist) / segD : 0;
-          s.segments[segIdx].x = curP.x + (nextP.x - curP.x) * t;
-          s.segments[segIdx].y = curP.y + (nextP.y - curP.y) * t;
-          matched = true;
-          break;
-        }
-        accumDist += segD;
-        curP = nextP;
-        histIdx++;
-      }
-
-      if (!matched) {
-        // If history caught up during sudden growth or speed burst, smoothly extrapolate
-        const remaining = targetDist - accumDist;
-        let dirX = -Math.cos(s.angle);
-        let dirY = -Math.sin(s.angle);
-        if (history.length >= 2) {
-          const last = history[history.length - 1];
-          const prev = history[history.length - 2];
-          const td = Math.hypot(last.x - prev.x, last.y - prev.y);
-          if (td > 0.001) {
-            dirX = (last.x - prev.x) / td;
-            dirY = (last.y - prev.y) / td;
-          }
-        }
-        const last = history[history.length - 1];
-        s.segments[segIdx].x = last.x + dirX * remaining;
-        s.segments[segIdx].y = last.y + dirY * remaining;
-      }
-    }
-
-    // Prune excess path history to eliminate GC pressure and prevent memory bloat
-    const maxNeededDist = (s.segments.length - 1) * spacing + 40;
-    let trimDist = 0;
-    let keepCount = 1;
-    for (let i = 0; i < history.length - 1; i++) {
-      trimDist += Math.hypot(history[i + 1].x - history[i].x, history[i + 1].y - history[i].y);
-      keepCount++;
-      if (trimDist >= maxNeededDist) break;
-    }
-    while (history.length > keepCount + 5) {
-      const removed = history.pop();
-      if (removed) this.releaseSegment(removed);
     }
   }
 
@@ -2414,10 +2391,10 @@ export class SimulationWorld {
 
     if (
       bestLootOrb &&
-      (bestLootOrb.kind === 'loot' || bestLootOrb.kind === 'star' || bestLootOrb.value >= 10)
+      (bestLootOrb.kind === 'loot' || bestLootOrb.kind === 'star' || bestLootOrb.value >= 8)
     ) {
       desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
-      wantsBoost = tier !== 'weak' && bot.score > 35 && bestLootOrb.value >= 8 && Math.random() < 0.65;
+      wantsBoost = bot.score >= 8 && Math.random() < 0.75;
       // Weak bots occasionally tunnel-vision onto shiny loot piles
       isGreedyDive = tier === 'weak' && Math.random() < 0.35;
     } else if (huntTarget && (tier === 'strong' || tier === 'titan')) {
@@ -2433,7 +2410,7 @@ export class SimulationWorld {
         // Already ahead of target's nose — swerve sharply across their path to cut them off!
         const cutSign = lateralOffset >= 0 ? -1 : 1;
         desiredAngle = normalizeAngle(huntTarget.angle + cutSign * 1.18);
-        wantsBoost = bot.score > 35;
+        wantsBoost = bot.score >= 10;
         if (now >= bot.abilityCooldownUntil && Math.random() < 0.22) {
           this.castAbility(bot, now);
         }
@@ -2446,19 +2423,19 @@ export class SimulationWorld {
         const iy = huntTarget.y + tSin * leadDist + tCos * flankOffset;
         desiredAngle = Math.atan2(iy - bot.y, ix - bot.x);
         wantsBoost =
-          bot.score > 50 &&
-          closestEnemyHeadDist < 420 &&
-          Math.random() < (tier === 'titan' ? 0.68 : 0.52);
+          bot.score >= 10 &&
+          closestEnemyHeadDist < 500 &&
+          Math.random() < (tier === 'titan' ? 0.78 : 0.62);
       }
     } else if (bestLootOrb && (bestLootOrb.value >= 4 || !humanPlayer || distToHuman > 1850)) {
       desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
-      wantsBoost = false;
+      wantsBoost = bot.score >= 12 && Math.random() < 0.45;
     } else if (humanPlayer && distToHuman < 1850 && distToHuman > 260) {
       // Natural approach towards player: Bots gravitate towards the player's sector!
       const angleToPlayer = Math.atan2(humanPlayer.y - bot.y, humanPlayer.x - bot.x);
       const wander = (Math.random() - 0.5) * (tier === 'weak' ? 0.65 : 0.35);
       desiredAngle = angleToPlayer + wander;
-      wantsBoost = tier === 'strong' && distToHuman < 700 && Math.random() < 0.45;
+      wantsBoost = bot.score >= 10 && distToHuman < 850 && Math.random() < 0.55;
     } else if (bestLootOrb) {
       desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
       wantsBoost = false;
@@ -2545,10 +2522,9 @@ export class SimulationWorld {
     if (forwardClearance < bot.radius * 3.2 + 70 || turnNeeded > 0.65) {
       bot.isBoosting = false;
     } else if (
-      tier !== 'weak' &&
-      bestRawClearance > lookAhead * 0.7 &&
-      closestEnemyHeadDist < 220 &&
-      bot.score > 45
+      bestRawClearance > lookAhead * 0.65 &&
+      (closestEnemyHeadDist < 320 || Math.random() < 0.45) &&
+      bot.score >= 8
     ) {
       bot.isBoosting = true;
     } else {
