@@ -178,7 +178,8 @@ export class SimulationWorld {
     value: number,
     color: string,
     radius: number,
-    kind: OrbKind
+    kind: OrbKind,
+    collectibleAfter?: number
   ): Orb {
     const o = this.orbPool.pop();
     if (o) {
@@ -189,9 +190,10 @@ export class SimulationWorld {
       o.color = color;
       o.radius = radius;
       o.kind = kind;
+      o.collectibleAfter = collectibleAfter;
       return o;
     }
-    return { id, x, y, value, color, radius, kind };
+    return { id, x, y, value, color, radius, kind, collectibleAfter };
   }
 
   private releaseOrb(orb: Orb): void {
@@ -212,7 +214,7 @@ export class SimulationWorld {
         config.targetTotalPopulation ?? Math.floor(290 + Math.random() * 16);
       this.maxAmbientOrbs = 48000; // 4x Increased Food Orbs everywhere across the map
       this.maxCores = 850;
-      this.maxLootOrbs = 8000;
+      this.maxLootOrbs = 25000; // Generous capacity so death orbs never vanish
     } else {
       this.worldHalfSize = this.map.onlineHalfSize;
       // ~300 active global snakes in Online arena
@@ -220,7 +222,7 @@ export class SimulationWorld {
         config.targetTotalPopulation ?? Math.floor(288 + Math.random() * 18);
       this.maxAmbientOrbs = 48000;
       this.maxCores = 850;
-      this.maxLootOrbs = 8000;
+      this.maxLootOrbs = 25000;
     }
 
     this.seedInitialOrbs();
@@ -379,13 +381,27 @@ export class SimulationWorld {
     let bestPoint = { x: 0, y: 0 };
     let bestScore = -Infinity;
 
-    const minPlayerDistSq = isBot && humanPlayer ? 980 * 980 : 0;
-    const minHeadDistSq = 340 * 340;
-    const minSegDistSq = 210 * 210;
+    // Minimum distance from human player to prevent unfair instant collisions
+    const minPlayerDistSq = isBot && humanPlayer ? 300 * 300 : 0;
+    const minHeadDistSq = 320 * 320;
+    const minSegDistSq = 200 * 200;
 
-    for (let attempt = 0; attempt < 28; attempt++) {
-      const x = (Math.random() * 2 - 1) * bound;
-      const y = (Math.random() * 2 - 1) * bound;
+    // Excitement Ring: 50% of bot spawns happen in the active sector around player (420px .. 960px)
+    const targetPlayerSector = isBot && humanPlayer && Math.random() < 0.52;
+
+    for (let attempt = 0; attempt < 32; attempt++) {
+      let x: number;
+      let y: number;
+
+      if (targetPlayerSector && humanPlayer) {
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 420 + Math.random() * 540;
+        x = Math.max(-bound, Math.min(bound, humanPlayer.x + Math.cos(ang) * dist));
+        y = Math.max(-bound, Math.min(bound, humanPlayer.y + Math.sin(ang) * dist));
+      } else {
+        x = (Math.random() * 2 - 1) * bound;
+        y = (Math.random() * 2 - 1) * bound;
+      }
 
       if (humanPlayer && isBot) {
         const dPlayerSq = distSq(x, y, humanPlayer.x, humanPlayer.y);
@@ -481,16 +497,17 @@ export class SimulationWorld {
     y: number,
     value: number,
     kind: OrbKind,
-    color: string
+    color: string,
+    collectibleAfter?: number
   ): void {
     if (value <= 0) return;
     const maxB = this.worldHalfSize - 40;
     const cx = Math.max(-maxB, Math.min(maxB, x));
     const cy = Math.max(-maxB, Math.min(maxB, y));
     const id = this.nextId('loot');
-    const radius = Math.min(13, 5.4 + Math.sqrt(value) * 1.05);
+    const radius = Math.min(14, 5.8 + Math.sqrt(value) * 1.15);
     this.registerOrb(
-      this.acquireOrb(id, cx, cy, value, color, radius, kind)
+      this.acquireOrb(id, cx, cy, value, color, radius, kind, collectibleAfter)
     );
   }
 
@@ -851,25 +868,28 @@ export class SimulationWorld {
     }
 
     const spec = getSnakeSpec(victim.snakeTypeId);
+    // Generous death drop: 85% of score and at least 5.2 points per segment!
     const totalDropScore = Math.max(
-      Math.floor(victim.segments.length * 3.8),
-      Math.floor(Math.max(0, victim.score) * 0.65)
+      Math.floor(victim.segments.length * 5.2),
+      Math.floor(Math.max(0, victim.score) * 0.85)
     );
 
     if (totalDropScore > 0) {
       this.trimExcessLootOrbs();
 
       const totalPieces = Math.max(
-        14,
+        22,
         Math.min(
-          Math.floor(victim.segments.length * 1.5) + (victim.score > 400 ? 28 : 8),
-          160,
+          Math.floor(victim.segments.length * 1.8) + (victim.score > 300 ? 38 : 14),
+          220,
           totalDropScore
         )
       );
 
       const basePieceValue = Math.max(1, Math.floor(totalDropScore / totalPieces));
       let remaining = totalDropScore;
+      // Brief 420ms delay before orbs can be eaten: allows death burst to scatter and prevents instant vacuum
+      const eatDelayUntil = now + 420;
 
       for (let i = 0; i < totalPieces && remaining > 0; i++) {
         const pieceVal =
@@ -883,7 +903,7 @@ export class SimulationWorld {
         );
         const seg = victim.segments[segIdx] || { x: victim.x, y: victim.y };
 
-        const scatterR = Math.min(26, 8 + Math.sqrt(victim.radius) * 2.8);
+        const scatterR = Math.min(52, 16 + Math.sqrt(victim.radius) * 3.4);
         const jitterX = (Math.random() - 0.5) * scatterR * 2;
         const jitterY = (Math.random() - 0.5) * scatterR * 2;
 
@@ -896,21 +916,23 @@ export class SimulationWorld {
           seg.y + jitterY,
           pieceVal,
           orbKind,
-          orbColor
+          orbColor,
+          eatDelayUntil
         );
       }
 
-      if (victim.score > 250) {
-        const headBursts = Math.min(8, Math.floor(victim.score / 200));
+      if (victim.score > 200) {
+        const headBursts = Math.min(10, Math.floor(victim.score / 150));
         for (let b = 0; b < headBursts; b++) {
           const ang = (Math.PI * 2 * b) / headBursts + Math.random() * 0.4;
-          const dist = 12 + Math.random() * 22;
+          const dist = 14 + Math.random() * 28;
           this.spawnOrbAt(
             victim.x + Math.cos(ang) * dist,
             victim.y + Math.sin(ang) * dist,
-            Math.max(5, Math.floor(basePieceValue * 1.8)),
+            Math.max(6, Math.floor(basePieceValue * 2.0)),
             'core',
-            '#facc15'
+            '#facc15',
+            eatDelayUntil
           );
         }
       }
@@ -952,8 +974,9 @@ export class SimulationWorld {
   private trimExcessLootOrbs(): void {
     if (this.lootOrbCount <= this.maxLootOrbs) return;
     let toRemove = this.lootOrbCount - this.maxLootOrbs + 200;
+    // Only trim low-value boost trail pellets (value <= 2), NEVER death drop orbs or stars!
     for (const [id, o] of this.orbs.entries()) {
-      if (o.kind === 'loot') {
+      if (o.kind === 'loot' && o.value <= 2) {
         this.unregisterOrb(id);
         toRemove--;
         if (toRemove <= 0) break;
@@ -1978,6 +2001,8 @@ export class SimulationWorld {
     for (let i = 0; i < nearby.length; i++) {
       const orb = nearby[i];
       if (!this.orbs.has(orb.id)) continue;
+      // Do not collect freshly dropped death orbs until brief scatter delay expires
+      if (orb.collectibleAfter && now < orb.collectibleAfter) continue;
       const d2 = distSq(s.x, s.y, orb.x, orb.y);
       const limitSq = eatSq + orb.radius * orb.radius;
 
@@ -2427,23 +2452,34 @@ export class SimulationWorld {
           closestEnemyHeadDist < 500 &&
           Math.random() < (tier === 'titan' ? 0.78 : 0.62);
       }
-    } else if (bestLootOrb && (bestLootOrb.value >= 4 || !humanPlayer || distToHuman > 1850)) {
-      desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
-      wantsBoost = bot.score >= 12 && Math.random() < 0.45;
-    } else if (humanPlayer && distToHuman < 1850 && distToHuman > 260) {
-      // Natural approach towards player: Bots gravitate towards the player's sector!
+    } else if (humanPlayer && distToHuman < 1200 && distToHuman > 240) {
+      // Direct Engagement: Bots actively gravitate toward player to make the match exciting & intense!
       const angleToPlayer = Math.atan2(humanPlayer.y - bot.y, humanPlayer.x - bot.x);
-      const wander = (Math.random() - 0.5) * (tier === 'weak' ? 0.65 : 0.35);
+      const wander = (Math.random() - 0.5) * (tier === 'weak' ? 0.45 : 0.25);
       desiredAngle = angleToPlayer + wander;
-      wantsBoost = bot.score >= 10 && distToHuman < 850 && Math.random() < 0.55;
+      wantsBoost = bot.score >= 10 && distToHuman < 820 && Math.random() < 0.60;
+    } else if (bestLootOrb && bestLootOrb.value >= 6) {
+      // High-value shiny food pile in vicinity
+      desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
+      wantsBoost = bot.score >= 12 && Math.random() < 0.50;
+    } else if (humanPlayer && distToHuman < 3800 && distToHuman >= 1200) {
+      // Broad Sector Migration: Bots naturally navigate toward the player's zone across the arena
+      const angleToPlayer = Math.atan2(humanPlayer.y - bot.y, humanPlayer.x - bot.x);
+      const wander = (Math.random() - 0.5) * 0.55;
+      desiredAngle = angleToPlayer + wander;
+      wantsBoost = bot.score >= 14 && Math.random() < 0.35;
     } else if (bestLootOrb) {
       desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
       wantsBoost = false;
     } else {
-      // Gently steer back toward central arena if drifting far out
-      const distFromCenter = Math.hypot(bot.x, bot.y);
-      if (distFromCenter > this.worldHalfSize * 0.78) {
-        desiredAngle = Math.atan2(-bot.y, -bot.x) + (Math.random() - 0.5) * 0.5;
+      // Steer back toward player or center if drifting far
+      if (humanPlayer && Math.random() < 0.55) {
+        desiredAngle = Math.atan2(humanPlayer.y - bot.y, humanPlayer.x - bot.x) + (Math.random() - 0.5) * 0.4;
+      } else {
+        const distFromCenter = Math.hypot(bot.x, bot.y);
+        if (distFromCenter > this.worldHalfSize * 0.78) {
+          desiredAngle = Math.atan2(-bot.y, -bot.x) + (Math.random() - 0.5) * 0.5;
+        }
       }
     }
 

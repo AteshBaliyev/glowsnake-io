@@ -16,6 +16,7 @@ import {
   Flame,
   Home,
   Loader2,
+  Play,
   RotateCcw,
   Sparkles,
   Swords,
@@ -222,52 +223,68 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             </div>
           </div>
 
-          {/* Revive via Google AdMob Rewarded Video Ad - Redesigned Hero Placement */}
+          {/* Revive via Google AdMob Rewarded Video Ad - Hyper-Attractive Hero Card */}
           {onRevive && (
-            <div className="my-2 p-1.5 rounded-xl bg-slate-900/90 border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.12)]">
-              <button
-                type="button"
-                disabled={isAdLoading || adCooldown > 0}
-                onClick={handleReviveWithAd}
-                className="w-full relative group overflow-hidden rounded-lg bg-gradient-to-r from-amber-500/20 via-emerald-500/20 to-sky-500/20 hover:from-amber-500/30 hover:via-emerald-500/30 hover:to-sky-500/30 border border-amber-400/40 p-2 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0 text-left">
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0 shadow-md shadow-amber-500/30">
-                      {isAdLoading ? (
-                        <Loader2 className="h-4 w-4 text-slate-950 animate-spin" />
-                      ) : (
-                        <Clapperboard className="h-4 w-4 text-slate-950" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-black text-amber-300 flex items-center gap-1.5 truncate">
-                        <span>
-                          {isAdLoading
-                            ? t.adLoading
-                            : adCooldown > 0
-                            ? t.adCooldownWait.replace('{sec}', String(adCooldown))
-                            : t.reviveWithAd}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 truncate">
-                        {summary.finalScore > 0
-                          ? `+${summary.finalScore} ${t.score} • ${t.continueWhereLeft}`
-                          : t.continueWhereLeft}
-                      </p>
-                    </div>
-                  </div>
+            <div className="my-2.5 p-2 rounded-2xl bg-gradient-to-r from-amber-950/70 via-slate-900/90 to-emerald-950/70 border-2 border-amber-400/80 shadow-[0_0_25px_rgba(245,158,11,0.32)] relative overflow-hidden group">
+              {/* Shimmer Ambient Glow */}
+              <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 via-yellow-400/15 to-emerald-500/10 opacity-75 animate-pulse pointer-events-none" />
 
-                  <div className="shrink-0">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] sm:text-xs font-black shadow-sm tracking-wide">
-                      <Sparkles className="h-3 w-3" />
-                      <span>{adCooldown > 0 ? `${adCooldown}s` : 'REKLAM'}</span>
-                    </span>
-                  </div>
+              <div className="relative z-10">
+                {/* Header Badge */}
+                <div className="flex items-center justify-between gap-1 mb-1.5 px-0.5">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-[9px] sm:text-[10px] font-black text-amber-300 uppercase tracking-wider">
+                    <Sparkles className="h-3 w-3 text-amber-300 animate-spin" />
+                    <span>{summary.finalScore > 0 ? `+${summary.finalScore} ${t.score} QORUNUR!` : 'CANLANMA ŞANSI'}</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                    <Flame className="h-3 w-3 text-emerald-400" />
+                    <span>Liderlik İtmir!</span>
+                  </span>
                 </div>
-              </button>
+
+                <button
+                  type="button"
+                  disabled={isAdLoading || adCooldown > 0}
+                  onClick={handleReviveWithAd}
+                  className="w-full relative overflow-hidden rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-200 text-slate-950 p-2.5 shadow-lg shadow-amber-500/40 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border border-yellow-200"
+                >
+                  <div className="flex items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0 text-left">
+                      <div className="h-9 w-9 rounded-lg bg-slate-950/90 flex items-center justify-center shrink-0 shadow-inner">
+                        {isAdLoading ? (
+                          <Loader2 className="h-5 w-5 text-amber-400 animate-spin" />
+                        ) : (
+                          <Clapperboard className="h-5 w-5 text-amber-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs sm:text-sm font-black text-slate-950 flex items-center gap-1.5 truncate leading-tight">
+                          <span>
+                            {isAdLoading
+                              ? t.adLoading
+                              : adCooldown > 0
+                              ? t.adCooldownWait.replace('{sec}', String(adCooldown))
+                              : t.reviveWithAd}
+                          </span>
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] font-bold text-slate-900/80 truncate leading-tight mt-0.5">
+                          {t.continueWhereLeft}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950 text-amber-300 text-[10px] sm:text-xs font-black shadow-md border border-amber-400/50 tracking-wide">
+                        <Play className="h-3 w-3 fill-amber-300" />
+                        <span>{adCooldown > 0 ? `${adCooldown}s` : '1 REKLAM'}</span>
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
               {adError && (
-                <p className="text-[10px] text-amber-400 text-center mt-1 font-medium">
+                <p className="text-[10px] text-amber-400 text-center mt-1.5 font-medium relative z-10">
                   {adError}
                 </p>
               )}

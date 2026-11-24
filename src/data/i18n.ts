@@ -284,8 +284,8 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyBody:
       'GlowSnake.io was created by Atesh Studio. The game does not collect, store, or sell any personal data. All player stats, unlocked snakes, high scores, levels, and preferences are stored exclusively on your device via local browser storage.',
     ok: 'OK',
-    reviveWithAd: 'Watch Ad to Revive (Keep Score)',
-    continueWhereLeft: 'Continue where you left off',
+    reviveWithAd: '⚡ Watch Ad to Revive (Keep Score!)',
+    continueWhereLeft: '🔥 Continue where you left off & dominate!',
     getFreeCoins: 'Watch Ad (+150 XP / Coins)',
     adLoading: 'Loading Ad...',
     adNotReady: 'Ad is loading, please try again in a moment.',
@@ -408,8 +408,8 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyBody:
       'GlowSnake.io oyunu Atesh Studio tərəfindən yaradılmışdır. Oyun heç bir fərdi məlumatı toplamır, saxlamır və paylaşmır. Oyun statistikaları, qazanılan xallar, səviyyələr və ayarlar yalnız sizin cihazınızın lokal yaddaşında saxlanılır.',
     ok: 'OK',
-    reviveWithAd: 'Reklama baxaraq Diril (Xalını Qoru)',
-    continueWhereLeft: 'Qaldığın yerdən davam et',
+    reviveWithAd: '⚡ Reklama Baxaraq Diril (Xalını Qoru!)',
+    continueWhereLeft: '🔥 Qaldığın yerdən davam et və lider ol!',
     getFreeCoins: 'Reklam izlə (+150 XP / Coin Qazan)',
     adLoading: 'Reklam açılır...',
     adNotReady: 'Reklam yüklənir, zəhmət olmasa bir neçə saniyə sonra yenidən cəhd edin.',
@@ -532,8 +532,8 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     privacyBody:
       'GlowSnake.io, Atesh Studio tarafından geliştirilmiştir. Oyun hiçbir kişisel veriyi toplamaz, saklamaz veya satmaz. Tüm istatistikler, açılan yılanlar, seviyeler ve tercihler yalnızca cihazınızın tarayıcı belleğinde saklanır.',
     ok: 'OK',
-    reviveWithAd: 'Reklam İzleyerek Canlan (Skorunu Koru)',
-    continueWhereLeft: 'Kaldığın yerden devam et',
+    reviveWithAd: '⚡ Reklam İzleyerek Canlan (Skorunu Koru!)',
+    continueWhereLeft: '🔥 Kaldığın yerden devam et ve lider ol!',
     getFreeCoins: 'Reklam İzle (+150 XP / Coin Kazan)',
     adLoading: 'Reklam açılıyor...',
     adNotReady: 'Reklam yükleniyor, lütfen birkaç saniye sonra tekrar deneyin.',

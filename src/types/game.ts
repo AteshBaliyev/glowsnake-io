@@ -138,6 +138,7 @@ export interface Orb {
   color: string;
   radius: number;
   kind: OrbKind;
+  collectibleAfter?: number;
 }
 
 export type HazardKind =

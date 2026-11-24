@@ -418,7 +418,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         deathSeqRef.current = {
           active: true,
           startedAt: perfNow,
-          durationMs: 1600,
+          durationMs: 1250, // Reduced by ~22% for faster, snappier Game Over transition
           finalPayload: {
             finalScore: meAfter ? Math.floor(meAfter.score) : cachedFinalScore,
             peakScore: meAfter ? Math.floor(meAfter.peakScore) : cachedPeakScore,
