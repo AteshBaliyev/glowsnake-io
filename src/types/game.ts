@@ -191,6 +191,7 @@ export interface SnakeEntity {
   spawnedAt: number;
   isBoosting: boolean;
   segments: Point2D[];
+  pathHistory?: Point2D[];
   abilityCooldownUntil: number;
   abilityActiveUntil: number;
   activeEffect: AbilityId | null;

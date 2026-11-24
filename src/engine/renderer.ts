@@ -272,6 +272,7 @@ export function drawSnakeSegments(
 
 export class ArenaRenderer {
   private particles: Particle[] = [];
+  private particlePool: Particle[] = [];
   private camX = 0;
   private camY = 0;
   private camZoom = 0.67;
@@ -281,6 +282,37 @@ export class ArenaRenderer {
   private initializedCam = false;
   private orbBatchMap: Map<string, Orb[]> = new Map();
 
+  private acquireParticle(
+    x: number,
+    y: number,
+    vx: number,
+    vy: number,
+    radius: number,
+    color: string,
+    alpha: number,
+    decay: number
+  ): Particle {
+    const p = this.particlePool.pop();
+    if (p) {
+      p.x = x;
+      p.y = y;
+      p.vx = vx;
+      p.vy = vy;
+      p.radius = radius;
+      p.color = color;
+      p.alpha = alpha;
+      p.decay = decay;
+      return p;
+    }
+    return { x, y, vx, vy, radius, color, alpha, decay };
+  }
+
+  private releaseParticle(p: Particle): void {
+    if (this.particlePool.length < 500) {
+      this.particlePool.push(p);
+    }
+  }
+
   public resetCamera(x = 0, y = 0): void {
     this.camX = x;
     this.camY = y;
@@ -289,6 +321,9 @@ export class ArenaRenderer {
     this.lookAheadOffsetX = 0;
     this.lookAheadOffsetY = 0;
     this.initializedCam = false;
+    for (let i = 0; i < this.particles.length; i++) {
+      this.releaseParticle(this.particles[i]);
+    }
     this.particles = [];
   }
 
@@ -312,23 +347,48 @@ export class ArenaRenderer {
     }
   }
 
+  public spawnDeathBurst(x: number, y: number, color: string): void {
+    const count = 38;
+    for (let i = 0; i < count; i++) {
+      const a = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.4;
+      const spd = 60 + Math.random() * 260;
+      this.particles.push(
+        this.acquireParticle(
+          x,
+          y,
+          Math.cos(a) * spd,
+          Math.sin(a) * spd,
+          3 + Math.random() * 4.5,
+          color,
+          1.0,
+          0.8 + Math.random() * 0.6
+        )
+      );
+    }
+  }
+
   private spawnBurst(x: number, y: number, color: string, count: number): void {
-    if (this.particles.length > 160) {
-      this.particles.splice(0, count);
+    if (this.particles.length > 200) {
+      const trimmed = this.particles.splice(0, count);
+      for (let i = 0; i < trimmed.length; i++) {
+        this.releaseParticle(trimmed[i]);
+      }
     }
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
       const spd = 40 + Math.random() * 140;
-      this.particles.push({
-        x,
-        y,
-        vx: Math.cos(a) * spd,
-        vy: Math.sin(a) * spd,
-        radius: 2 + Math.random() * 2.5,
-        color,
-        alpha: 0.9,
-        decay: 1.6 + Math.random() * 0.8,
-      });
+      this.particles.push(
+        this.acquireParticle(
+          x,
+          y,
+          Math.cos(a) * spd,
+          Math.sin(a) * spd,
+          2 + Math.random() * 2.5,
+          color,
+          0.9,
+          1.6 + Math.random() * 0.8
+        )
+      );
     }
   }
 
@@ -372,8 +432,11 @@ export class ArenaRenderer {
         this.camY = me.y;
       }
 
-      // Tactical field of view: 1.5x wider base view (0.67) so players detect rivals from afar
-      const baseZoom = 0.67;
+      // Tactical field of view: responsive FOV scaling for tablets & widescreen phones
+      const aspect = width / Math.max(1, height);
+      // On tablets (aspect < 1.6), adjust base zoom so the horizontal field of view matches widescreen phones!
+      const aspectFactor = aspect < 1.6 ? Math.max(0.72, aspect / 1.6) : 1;
+      const baseZoom = 0.67 * aspectFactor;
       if (this.smoothScore <= 0) {
         this.smoothScore = me.score;
       } else {
@@ -713,6 +776,7 @@ export class ArenaRenderer {
       p.vy *= 0.92;
       p.alpha -= p.decay * dt;
       if (p.alpha <= 0.02) {
+        this.releaseParticle(p);
         this.particles.splice(i, 1);
         continue;
       }

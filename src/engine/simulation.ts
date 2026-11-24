@@ -14,6 +14,7 @@ import {
   MinimapDot,
   Orb,
   OrbKind,
+  Point2D,
   SimulationEvent,
   SnakeEntity,
   WorldSnapshot,
@@ -119,11 +120,58 @@ export class SimulationWorld {
   private lastMaintainAt = 0;
   private lastRankSortAt = 0;
   private stepCounter = 0;
+  private orbPool: Orb[] = [];
+  private segmentPool: Point2D[] = [];
   private boostDrainAccum: Map<string, number> = new Map();
   private trailSpawnAccum: Map<string, number> = new Map();
   private passiveScoreAccum: Map<string, number> = new Map();
   private botNextDecisionAt: Map<string, number> = new Map();
   private botGreedMode: Map<string, boolean> = new Map();
+
+  private acquireSegment(x: number, y: number): Point2D {
+    const p = this.segmentPool.pop();
+    if (p) {
+      p.x = x;
+      p.y = y;
+      return p;
+    }
+    return { x, y };
+  }
+
+  private releaseSegment(p: Point2D): void {
+    if (this.segmentPool.length < 15000) {
+      this.segmentPool.push(p);
+    }
+  }
+
+  private acquireOrb(
+    id: string,
+    x: number,
+    y: number,
+    value: number,
+    color: string,
+    radius: number,
+    kind: OrbKind
+  ): Orb {
+    const o = this.orbPool.pop();
+    if (o) {
+      o.id = id;
+      o.x = x;
+      o.y = y;
+      o.value = value;
+      o.color = color;
+      o.radius = radius;
+      o.kind = kind;
+      return o;
+    }
+    return { id, x, y, value, color, radius, kind };
+  }
+
+  private releaseOrb(orb: Orb): void {
+    if (this.orbPool.length < 5000) {
+      this.orbPool.push(orb);
+    }
+  }
 
   constructor(config: SimulationConfig) {
     this.map = getMapSpec(config.mapId);
@@ -199,6 +247,7 @@ export class SimulationWorld {
         }
       }
     }
+    this.releaseOrb(orb);
   }
 
   private relocateOrb(orb: Orb, nx: number, ny: number): void {
@@ -379,15 +428,17 @@ export class SimulationWorld {
     const palette = this.map.orbPalette;
     const color = palette[Math.floor(Math.random() * palette.length)];
     const id = this.nextId('orb');
-    this.registerOrb({
-      id,
-      x,
-      y,
-      value,
-      color,
-      radius: value >= 5 ? 7.4 : value >= 3 ? 5.9 : 4.7,
-      kind: 'ambient',
-    });
+    this.registerOrb(
+      this.acquireOrb(
+        id,
+        x,
+        y,
+        value,
+        color,
+        value >= 5 ? 7.4 : value >= 3 ? 5.9 : 4.7,
+        'ambient'
+      )
+    );
   }
 
   private spawnCoreOrb(): void {
@@ -395,15 +446,9 @@ export class SimulationWorld {
     const x = (Math.random() * 2 - 1) * zone;
     const y = (Math.random() * 2 - 1) * zone;
     const id = this.nextId('core');
-    this.registerOrb({
-      id,
-      x,
-      y,
-      value: 25,
-      color: '#facc15',
-      radius: 10.5,
-      kind: 'core',
-    });
+    this.registerOrb(
+      this.acquireOrb(id, x, y, 25, '#facc15', 10.5, 'core')
+    );
   }
 
   public spawnOrbAt(
@@ -419,15 +464,9 @@ export class SimulationWorld {
     const cy = Math.max(-maxB, Math.min(maxB, y));
     const id = this.nextId('loot');
     const radius = Math.min(13, 5.4 + Math.sqrt(value) * 1.05);
-    this.registerOrb({
-      id,
-      x: cx,
-      y: cy,
-      value,
-      color,
-      radius,
-      kind,
-    });
+    this.registerOrb(
+      this.acquireOrb(id, cx, cy, value, color, radius, kind)
+    );
   }
 
   public spawnSnake(params: {
@@ -447,12 +486,26 @@ export class SimulationWorld {
     const segCount = this.computeSegmentCount(score);
     const spacing = radius * 0.72;
 
-    const segments = [];
+    const segments: Point2D[] = [];
+    const pathHistory: Point2D[] = [];
+    const totalDist = Math.max(1, (segCount - 1) * spacing);
+    const historyStep = 4;
+    const historyCount = Math.ceil(totalDist / historyStep) + 6;
+    for (let k = 0; k < historyCount; k++) {
+      pathHistory.push(
+        this.acquireSegment(
+          pos.x - Math.cos(angle) * historyStep * k,
+          pos.y - Math.sin(angle) * historyStep * k
+        )
+      );
+    }
     for (let i = 0; i < segCount; i++) {
-      segments.push({
-        x: pos.x - Math.cos(angle) * spacing * i,
-        y: pos.y - Math.sin(angle) * spacing * i,
-      });
+      segments.push(
+        this.acquireSegment(
+          pos.x - Math.cos(angle) * spacing * i,
+          pos.y - Math.sin(angle) * spacing * i
+        )
+      );
     }
 
     const now = Date.now();
@@ -478,6 +531,7 @@ export class SimulationWorld {
       spawnedAt: now,
       isBoosting: false,
       segments,
+      pathHistory,
       abilityCooldownUntil: 0,
       abilityActiveUntil: 0,
       activeEffect: null,
@@ -686,6 +740,21 @@ export class SimulationWorld {
   }
 
   public removeSnake(id: string): void {
+    const s = this.snakes.get(id);
+    if (s) {
+      if (s.segments) {
+        for (let i = 0; i < s.segments.length; i++) {
+          this.releaseSegment(s.segments[i]);
+        }
+        s.segments = [];
+      }
+      if (s.pathHistory) {
+        for (let i = 0; i < s.pathHistory.length; i++) {
+          this.releaseSegment(s.pathHistory[i]);
+        }
+        s.pathHistory = [];
+      }
+    }
     this.snakes.delete(id);
     this.boostDrainAccum.delete(id);
     this.trailSpawnAccum.delete(id);
@@ -891,7 +960,10 @@ export class SimulationWorld {
 
   private spawnDecoyClone(snake: SnakeEntity, angleDelta: number, now: number): void {
     const decoyId = this.nextId('decoy');
-    const cloneSegs = snake.segments.map((pt) => ({ x: pt.x, y: pt.y }));
+    const cloneSegs = snake.segments.map((pt) => this.acquireSegment(pt.x, pt.y));
+    const cloneHistory = (snake.pathHistory || []).map((pt) =>
+      this.acquireSegment(pt.x, pt.y)
+    );
     const a = normalizeAngle(snake.angle + angleDelta);
     const decoy: SnakeEntity = {
       ...snake,
@@ -905,6 +977,7 @@ export class SimulationWorld {
       angle: a,
       targetAngle: a,
       segments: cloneSegs,
+      pathHistory: cloneHistory,
       stealthUntil: 0,
       freeBoostUntil: now + 4000,
       spawnedAt: now,
@@ -1020,6 +1093,12 @@ export class SimulationWorld {
         for (let i = 0; i < snake.segments.length; i++) {
           snake.segments[i].x += dx;
           snake.segments[i].y += dy;
+        }
+        if (snake.pathHistory) {
+          for (let i = 0; i < snake.pathHistory.length; i++) {
+            snake.pathHistory[i].x += dx;
+            snake.pathHistory[i].y += dy;
+          }
         }
         snake.phaseUntil = Math.max(snake.phaseUntil, now + 800);
         break;
@@ -1796,64 +1875,111 @@ export class SimulationWorld {
 
     const spacing = s.radius * 0.72;
 
-    // High-speed physics sub-stepping: at boost / high speeds (>250 px/s), run 2 sub-steps
-    // to keep segment spacing and trailing constraints completely fluid and eliminate discrete segment jumping!
-    const subSteps = s.isBoosting || speed > 250 ? 2 : 1;
-    const subDt = dt / subSteps;
-    const stepSpeed = speed;
+    // Head movement with delta-time
+    s.x += (Math.cos(s.angle) * speed + s.vx) * dt;
+    s.y += (Math.sin(s.angle) * speed + s.vy) * dt;
+    const damping = Math.pow(0.04, dt);
+    s.vx *= damping;
+    s.vy *= damping;
 
-    for (let step = 0; step < subSteps; step++) {
-      s.x += (Math.cos(s.angle) * stepSpeed + s.vx) * subDt;
-      s.y += (Math.sin(s.angle) * stepSpeed + s.vy) * subDt;
-      const damping = Math.pow(0.04, subDt);
-      s.vx *= damping;
-      s.vy *= damping;
+    // Ensure pathHistory exists
+    if (!s.pathHistory) {
+      s.pathHistory = [];
+    }
+    const history = s.pathHistory;
 
-      if (s.segments.length === 0) {
-        s.segments.push({ x: s.x, y: s.y });
-      } else {
-        s.segments[0].x = s.x;
-        s.segments[0].y = s.y;
-      }
-
-      // FIXED: Pull-only trailing kinematics — prevents segments from telescoping backward or freezing when radius grows!
-      for (let i = 1; i < s.segments.length; i++) {
-        const prev = s.segments[i - 1];
-        const curr = s.segments[i];
-        const dx = curr.x - prev.x;
-        const dy = curr.y - prev.y;
-        const d = Math.hypot(dx, dy);
-        if (d > spacing) {
-          curr.x = prev.x + (dx / d) * spacing;
-          curr.y = prev.y + (dy / d) * spacing;
+    // Add head to pathHistory if distance moved >= 3.5px (or initialize)
+    if (history.length === 0) {
+      history.push(this.acquireSegment(s.x, s.y));
+    } else {
+      const p0 = history[0];
+      const dx = s.x - p0.x;
+      const dy = s.y - p0.y;
+      const moveDist = Math.hypot(dx, dy);
+      if (moveDist >= 3.5) {
+        const steps = Math.min(8, Math.floor(moveDist / 3.5));
+        for (let k = 1; k <= steps; k++) {
+          const t = k / steps;
+          history.unshift(this.acquireSegment(p0.x + dx * t, p0.y + dy * t));
         }
+      } else {
+        p0.x = s.x;
+        p0.y = s.y;
       }
     }
 
-    // FIXED: Spawn new tail segments strictly along tail tangent with exact spacing (never stacked at d=0!)
+    // Ensure desired segment count using segment pooling
     const desiredSegs = this.computeSegmentCount(s.score);
     while (s.segments.length < desiredSegs) {
-      const len = s.segments.length;
-      const last = s.segments[len - 1];
-      let dirX = -Math.cos(s.angle);
-      let dirY = -Math.sin(s.angle);
-      if (len >= 2) {
-        const prev = s.segments[len - 2];
-        const tdx = last.x - prev.x;
-        const tdy = last.y - prev.y;
-        const td = Math.hypot(tdx, tdy);
-        if (td > 0.001) {
-          dirX = tdx / td;
-          dirY = tdy / td;
-        }
-      }
-      s.segments.push({
-        x: last.x + dirX * spacing,
-        y: last.y + dirY * spacing,
-      });
+      const last = s.segments[s.segments.length - 1] || s;
+      s.segments.push(this.acquireSegment(last.x, last.y));
     }
-    if (s.segments.length > desiredSegs) {
-      s.segments.length = desiredSegs;
+    while (s.segments.length > desiredSegs) {
+      const p = s.segments.pop();
+      if (p) this.releaseSegment(p);
+    }
+
+    if (s.segments.length > 0) {
+      s.segments[0].x = s.x;
+      s.segments[0].y = s.y;
+    }
+
+    // Arc-length path following: eliminates tail freezing, stuttering and corner cutting!
+    let histIdx = 0;
+    let accumDist = 0;
+    let curP = history[0];
+
+    for (let segIdx = 1; segIdx < s.segments.length; segIdx++) {
+      const targetDist = segIdx * spacing;
+      let matched = false;
+
+      while (histIdx < history.length - 1) {
+        const nextP = history[histIdx + 1];
+        const segD = Math.hypot(nextP.x - curP.x, nextP.y - curP.y);
+        if (accumDist + segD >= targetDist) {
+          const t = segD > 0.0001 ? (targetDist - accumDist) / segD : 0;
+          s.segments[segIdx].x = curP.x + (nextP.x - curP.x) * t;
+          s.segments[segIdx].y = curP.y + (nextP.y - curP.y) * t;
+          matched = true;
+          break;
+        }
+        accumDist += segD;
+        curP = nextP;
+        histIdx++;
+      }
+
+      if (!matched) {
+        // If history caught up during sudden growth or speed burst, smoothly extrapolate
+        const remaining = targetDist - accumDist;
+        let dirX = -Math.cos(s.angle);
+        let dirY = -Math.sin(s.angle);
+        if (history.length >= 2) {
+          const last = history[history.length - 1];
+          const prev = history[history.length - 2];
+          const td = Math.hypot(last.x - prev.x, last.y - prev.y);
+          if (td > 0.001) {
+            dirX = (last.x - prev.x) / td;
+            dirY = (last.y - prev.y) / td;
+          }
+        }
+        const last = history[history.length - 1];
+        s.segments[segIdx].x = last.x + dirX * remaining;
+        s.segments[segIdx].y = last.y + dirY * remaining;
+      }
+    }
+
+    // Prune excess path history to eliminate GC pressure and prevent memory bloat
+    const maxNeededDist = (s.segments.length - 1) * spacing + 40;
+    let trimDist = 0;
+    let keepCount = 1;
+    for (let i = 0; i < history.length - 1; i++) {
+      trimDist += Math.hypot(history[i + 1].x - history[i].x, history[i + 1].y - history[i].y);
+      keepCount++;
+      if (trimDist >= maxNeededDist) break;
+    }
+    while (history.length > keepCount + 5) {
+      const removed = history.pop();
+      if (removed) this.releaseSegment(removed);
     }
   }
 

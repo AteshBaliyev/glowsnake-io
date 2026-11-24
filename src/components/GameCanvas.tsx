@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GameHUD, HudState } from '@/components/GameHUD';
 import { getMapSpec } from '@/data/maps';
+import { getSnakeSpec } from '@/data/snakes';
 import { ArenaRenderer } from '@/engine/renderer';
 import { SimulationWorld } from '@/engine/simulation';
 import { soundEngine } from '@/engine/soundEngine';
@@ -50,6 +51,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const pendingAbilityRef = useRef<boolean>(false);
   const keysPressedRef = useRef<Set<string>>(new Set());
   const gameOverFiredRef = useRef<boolean>(false);
+  const deathSeqRef = useRef<{
+    active: boolean;
+    startedAt: number;
+    durationMs: number;
+    finalPayload: ServerDeathPayload;
+  } | null>(null);
+  const lastPlayerPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Sync live music preference & volume changes
   useEffect(() => {
@@ -79,6 +87,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     if (!ctx) return;
 
     gameOverFiredRef.current = false;
+    deathSeqRef.current = null;
     soundEngine.unlock();
     soundEngine.configureMusic(
       profileRef.current.musicTrack,
@@ -135,7 +144,17 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const getOptimalDpr = () => {
       if (!profileRef.current.bestGraphics) return 1;
       const rawDpr = window.devicePixelRatio || 1;
-      return isMobileDevice ? Math.min(1.25, rawDpr) : Math.min(2, rawDpr);
+      const screenW = window.innerWidth;
+      const screenH = window.innerHeight;
+      const baseDpr = isMobileDevice ? Math.min(1.25, rawDpr) : Math.min(2, rawDpr);
+      // Cap maximum backbuffer pixels at ~2.2M to ensure locked 60 FPS on tablets and mid/low-end phones
+      const totalPixels = screenW * screenH * baseDpr * baseDpr;
+      const MAX_PIXELS = 2200000;
+      if (totalPixels > MAX_PIXELS) {
+        const scale = Math.sqrt(MAX_PIXELS / (screenW * screenH));
+        return Math.max(0.85, Math.min(baseDpr, scale));
+      }
+      return baseDpr;
     };
 
     const updateCanvasSize = () => {
@@ -329,6 +348,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       const meBefore = localWorld.snakes.get(myPlayerId);
       if (meBefore && meBefore.alive) {
+        lastPlayerPosRef.current.x = meBefore.x;
+        lastPlayerPosRef.current.y = meBefore.y;
         cachedFinalScore = Math.floor(meBefore.score);
         cachedPeakScore = Math.floor(meBefore.peakScore);
         cachedTotalCollected = Math.floor(meBefore.totalCollected);
@@ -345,13 +366,23 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         fireAbility
       );
       const nowMs = Date.now();
-      localWorld.step(dtSec, nowMs);
+
+      // Cinematic slow-motion time dilation during player death transition
+      let stepDt = dtSec;
+      if (deathSeqRef.current?.active) {
+        const elapsed = perfNow - deathSeqRef.current.startedAt;
+        const p = Math.min(1, elapsed / deathSeqRef.current.durationMs);
+        stepDt = dtSec * Math.max(0.18, 1 - p * 0.82);
+      }
+      localWorld.step(stepDt, nowMs);
 
       const meNow = localWorld.snakes.get(myPlayerId);
       const camCenter =
         meNow && meNow.alive
           ? { x: meNow.x, y: meNow.y }
-          : renderer.getCameraCenter();
+          : deathSeqRef.current
+            ? lastPlayerPosRef.current
+            : renderer.getCameraCenter();
       const zoomEst = Math.max(0.22, renderer.getCameraZoom());
       const vHalfW = window.innerWidth / 2 / zoomEst + 360;
       const vHalfH = window.innerHeight / 2 / zoomEst + 360;
@@ -366,8 +397,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       renderer.ingestEvents(snapshot.events, myPlayerId);
 
       const meAfter = localWorld.snakes.get(myPlayerId);
-      if ((!meAfter || !meAfter.alive) && !gameOverFiredRef.current) {
-        gameOverFiredRef.current = true;
+      if (
+        (!meAfter || !meAfter.alive) &&
+        !gameOverFiredRef.current &&
+        !deathSeqRef.current
+      ) {
         const durationSec = Math.max(
           1,
           Math.round((nowMs - spawnedAtMs) / 1000)
@@ -381,18 +415,32 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           meAfter ? meAfter.bestRank : cachedBestRank
         );
 
-        onGameOver({
-          finalScore: meAfter ? Math.floor(meAfter.score) : cachedFinalScore,
-          peakScore: meAfter ? Math.floor(meAfter.peakScore) : cachedPeakScore,
-          totalCollected: meAfter
-            ? Math.floor(meAfter.totalCollected)
-            : cachedTotalCollected,
-          kills: meAfter ? meAfter.kills : cachedKills,
-          durationSec,
-          finalRank,
-          bestRank: Math.max(1, bestRank),
-          totalPlayers: cachedTotalPlayers,
-        });
+        deathSeqRef.current = {
+          active: true,
+          startedAt: perfNow,
+          durationMs: 1600,
+          finalPayload: {
+            finalScore: meAfter ? Math.floor(meAfter.score) : cachedFinalScore,
+            peakScore: meAfter ? Math.floor(meAfter.peakScore) : cachedPeakScore,
+            totalCollected: meAfter
+              ? Math.floor(meAfter.totalCollected)
+              : cachedTotalCollected,
+            kills: meAfter ? meAfter.kills : cachedKills,
+            durationSec,
+            finalRank,
+            bestRank: Math.max(1, bestRank),
+            totalPlayers: cachedTotalPlayers,
+          },
+        };
+
+        const currentSnakeSpec = getSnakeSpec(snakeTypeId);
+        const deathColor = currentSnakeSpec?.primaryColor || '#22c55e';
+        renderer.spawnDeathBurst(
+          lastPlayerPosRef.current.x,
+          lastPlayerPosRef.current.y,
+          deathColor
+        );
+        soundEngine.playDeath();
       }
 
       const dpr = getOptimalDpr();
@@ -408,7 +456,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         mapSpec,
         snapshot,
         myPlayerId,
-        dtSec,
+        stepDt,
         {
           showPlayerNames: profileRef.current.showPlayerNames,
           fadeMyName: profileRef.current.fadeMyName,
@@ -420,6 +468,38 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           minimapPlacement: profileRef.current.hudLayout?.minimap || null,
         }
       );
+
+      // Render smooth cinematic death transition (shockwave burst + soft vignette fade before modal)
+      if (deathSeqRef.current?.active) {
+        const elapsed = perfNow - deathSeqRef.current.startedAt;
+        const progress = Math.min(1, elapsed / deathSeqRef.current.durationMs);
+
+        const vignetteGrad = ctx.createRadialGradient(
+          cssW * 0.5,
+          cssH * 0.5,
+          Math.min(cssW, cssH) * 0.18,
+          cssW * 0.5,
+          cssH * 0.5,
+          Math.max(cssW, cssH) * 0.82
+        );
+        vignetteGrad.addColorStop(0, `rgba(15, 23, 42, ${progress * 0.32})`);
+        vignetteGrad.addColorStop(
+          1,
+          `rgba(2, 6, 23, ${Math.min(0.85, progress * 0.95)})`
+        );
+        ctx.fillStyle = vignetteGrad;
+        ctx.fillRect(0, 0, cssW, cssH);
+
+        if (
+          elapsed >= deathSeqRef.current.durationMs &&
+          !gameOverFiredRef.current
+        ) {
+          gameOverFiredRef.current = true;
+          deathSeqRef.current.active = false;
+          onGameOver(deathSeqRef.current.finalPayload);
+        }
+      }
+
       ctx.restore();
 
       if (perfNow - lastHudUpdateMs >= 100) {

@@ -222,67 +222,69 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             </div>
           </div>
 
-          {/* Revive via Google AdMob Rewarded Video Ad */}
+          {/* Revive via Google AdMob Rewarded Video Ad - Redesigned Hero Placement */}
           {onRevive && (
-            <div className="my-1">
+            <div className="my-2 p-1.5 rounded-xl bg-slate-900/90 border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.12)]">
               <button
                 type="button"
                 disabled={isAdLoading || adCooldown > 0}
                 onClick={handleReviveWithAd}
-                className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-amber-500 via-emerald-500 to-cyan-500 p-[1.5px] shadow-[0_0_12px_rgba(16,185,129,0.25)] active:scale-[0.98] transition cursor-pointer disabled:opacity-60"
+                className="w-full relative group overflow-hidden rounded-lg bg-gradient-to-r from-amber-500/20 via-emerald-500/20 to-sky-500/20 hover:from-amber-500/30 hover:via-emerald-500/30 hover:to-sky-500/30 border border-amber-400/40 p-2 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <div className="flex items-center justify-between rounded-[10px] bg-slate-950/85 px-2.5 py-1.5 backdrop-blur-sm group-hover:bg-slate-950/70 transition">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="h-6 w-6 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0 text-left">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0 shadow-md shadow-amber-500/30">
                       {isAdLoading ? (
-                        <Loader2 className="h-3.5 w-3.5 text-emerald-400 animate-spin" />
+                        <Loader2 className="h-4 w-4 text-slate-950 animate-spin" />
                       ) : (
-                        <Clapperboard className="h-3.5 w-3.5 text-emerald-400" />
+                        <Clapperboard className="h-4 w-4 text-slate-950" />
                       )}
                     </div>
-                    <div className="text-left min-w-0">
-                      <div className="text-[11px] sm:text-xs font-black text-white flex items-center gap-1.5 truncate">
+                    <div className="min-w-0">
+                      <div className="text-xs font-black text-amber-300 flex items-center gap-1.5 truncate">
                         <span>
                           {isAdLoading
                             ? t.adLoading
                             : adCooldown > 0
-                            ? `⏳ ${t.adCooldownWait.replace('{sec}', String(adCooldown))}`
+                            ? t.adCooldownWait.replace('{sec}', String(adCooldown))
                             : t.reviveWithAd}
                         </span>
-                        {adCooldown === 0 && (
-                          <span className="rounded bg-emerald-500/20 text-emerald-300 text-[9px] px-1 font-mono">
-                            +{summary.finalScore}
-                          </span>
-                        )}
                       </div>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {summary.finalScore > 0
+                          ? `+${summary.finalScore} ${t.score} • ${t.continueWhereLeft}`
+                          : t.continueWhereLeft}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-black text-emerald-400 shrink-0 pl-2">
-                    <Sparkles className="h-3 w-3" />
-                    <span>{adCooldown > 0 ? `${adCooldown}s` : 'DİRİL'}</span>
+                  <div className="shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] sm:text-xs font-black shadow-sm tracking-wide">
+                      <Sparkles className="h-3 w-3" />
+                      <span>{adCooldown > 0 ? `${adCooldown}s` : 'REKLAM'}</span>
+                    </span>
                   </div>
                 </div>
               </button>
               {adError && (
-                <p className="text-[10px] text-amber-400 text-center mt-0.5 font-medium">
+                <p className="text-[10px] text-amber-400 text-center mt-1 font-medium">
                   {adError}
                 </p>
               )}
             </div>
           )}
 
-          {/* Action Buttons: 100% visible on screen without scroll */}
-          <div className="grid grid-cols-2 gap-2 pt-1 mt-0.5">
+          {/* Distinct Separator and Primary Action Buttons */}
+          <div className="border-t border-white/10 pt-2 mt-1 grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => {
                 soundEngine.playClick();
                 onPlayAgain();
               }}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 py-2 px-3 text-xs sm:text-sm font-black text-slate-950 shadow-md shadow-emerald-500/25 active:scale-[0.98] transition cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 py-2.5 px-3 text-xs sm:text-sm font-black text-slate-950 shadow-md shadow-emerald-500/25 active:scale-[0.98] transition cursor-pointer"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
+              <RotateCcw className="h-4 w-4" />
               <span>{t.playAgain}</span>
             </button>
 
@@ -292,9 +294,9 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                 soundEngine.playClick();
                 onMainMenu();
               }}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/15 py-2 px-3 text-xs sm:text-sm font-bold text-slate-200 active:scale-[0.98] transition cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/15 py-2.5 px-3 text-xs sm:text-sm font-bold text-slate-200 active:scale-[0.98] transition cursor-pointer"
             >
-              <Home className="h-3.5 w-3.5" />
+              <Home className="h-4 w-4" />
               <span>{t.mainMenu}</span>
             </button>
           </div>
