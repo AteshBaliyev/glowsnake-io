@@ -129,7 +129,7 @@ export interface ArenaMapSpec {
   orbPalette: string[];
 }
 
-export type OrbKind = 'ambient' | 'loot' | 'core' | 'star';
+export type OrbKind = 'ambient' | 'loot' | 'core' | 'star' | 'trail';
 
 export interface Orb {
   id: string;
@@ -140,6 +140,7 @@ export interface Orb {
   radius: number;
   kind: OrbKind;
   collectibleAfter?: number;
+  botCollectibleAfter?: number;
 }
 
 export type HazardKind =

@@ -88,6 +88,21 @@ interface SegRef {
   segIndex: number;
 }
 
+interface VirtualCompetitor {
+  id: string;
+  name: string;
+  snakeTypeId: string;
+  score: number;
+  kills: number;
+  x: number;
+  y: number;
+}
+
+const ACTIVE_BOT_MIN = 35;
+const ACTIVE_BOT_MAX = 40;
+const ACTIVE_BUBBLE_RADIUS = 2500;
+const VIRTUAL_ROSTER_COUNT = 256;
+
 export class SimulationWorld {
   public map: ArenaMapSpec;
   public mode: GameMode;
@@ -108,6 +123,8 @@ export class SimulationWorld {
   private ambientOrbCount = 0;
   private coreOrbCount = 0;
   private lootOrbCount = 0;
+  private trailOrbCount = 0;
+  private maxTrailOrbs = 700;
 
   private orbGrid: Map<number, Orb[]> = new Map();
   private orbCellKeys: Map<string, number> = new Map();
@@ -132,15 +149,19 @@ export class SimulationWorld {
   private botNextDecisionAt: Map<string, number> = new Map();
   private botGreedMode: Map<string, boolean> = new Map();
   private humanPlayerId: string | null = null;
-  // Zero-GC reusable scratch arrays & O(1) low-loot cleanup queue
+  // Zero-GC reusable scratch arrays & O(1) FIFO orb queues
   private scratchOrbs: Orb[] = [];
   private scratchSegs: SegRef[] = [];
   private botSegsScratch: SegRef[] = [];
   private snapshotSnakesCache: SnakeEntity[] = [];
   private snapshotOrbsCache: Orb[] = [];
   private snapshotHazardsCache: HazardZone[] = [];
-  private lowLootQueue: string[] = [];
-  private lowLootHead = 0;
+  private deathLootQueue: string[] = [];
+  private deathLootHead = 0;
+  private trailOrbQueue: string[] = [];
+  private trailOrbHead = 0;
+  private virtualRoster: VirtualCompetitor[] = [];
+  private leaderboardCeiling = 20000;
 
   private acquireSegRef(
     snake: SnakeEntity,
@@ -191,7 +212,8 @@ export class SimulationWorld {
     color: string,
     radius: number,
     kind: OrbKind,
-    collectibleAfter?: number
+    collectibleAfter?: number,
+    botCollectibleAfter?: number
   ): Orb {
     const o = this.orbPool.pop();
     if (o) {
@@ -203,9 +225,10 @@ export class SimulationWorld {
       o.radius = radius;
       o.kind = kind;
       o.collectibleAfter = collectibleAfter;
+      o.botCollectibleAfter = botCollectibleAfter;
       return o;
     }
-    return { id, x, y, value, color, radius, kind, collectibleAfter };
+    return { id, x, y, value, color, radius, kind, collectibleAfter, botCollectibleAfter };
   }
 
   private releaseOrb(orb: Orb): void {
@@ -220,24 +243,20 @@ export class SimulationWorld {
     this.difficulty = config.difficulty || 'easy';
     this.serverInstanceIndex = config.serverInstanceIndex ?? 1;
 
-    if (config.mode === 'offline') {
-      this.worldHalfSize = Math.round(this.map.offlineHalfSize * 0.72);
-      // ~200 active snakes with dense food & zero GC pauses on mobile WebViews
-      this.targetPopulation =
-        config.targetTotalPopulation ?? Math.floor(194 + Math.random() * 14);
-      this.maxAmbientOrbs = 20000;
-      this.maxCores = 500;
-      this.maxLootOrbs = 12000;
-    } else {
-      this.worldHalfSize = Math.round(this.map.onlineHalfSize * 0.72);
-      this.targetPopulation =
-        config.targetTotalPopulation ?? Math.floor(194 + Math.random() * 14);
-      this.maxAmbientOrbs = 20000;
-      this.maxCores = 500;
-      this.maxLootOrbs = 12000;
-    }
+    const rawHalf =
+      config.mode === 'offline' ? this.map.offlineHalfSize : this.map.onlineHalfSize;
+    this.worldHalfSize = Math.round(rawHalf * 0.72);
+    // Simulate only the ~38 nearest physical bots in the active bubble around the player!
+    // Combined with virtualRoster (~256) for full ~294-player leaderboard & minimap.
+    this.targetPopulation = Math.floor(
+      ACTIVE_BOT_MIN + Math.random() * (ACTIVE_BOT_MAX - ACTIVE_BOT_MIN + 1)
+    );
+    this.maxAmbientOrbs = 15000;
+    this.maxCores = 380;
+    this.maxLootOrbs = 14000;
 
     this.seedInitialOrbs();
+    this.seedVirtualRoster();
     this.rebuildSegmentGrid();
     this.maintainPopulation(Date.now(), true);
     this.recomputeRanks(Date.now());
@@ -253,11 +272,12 @@ export class SimulationWorld {
     this.orbs.set(orb.id, orb);
     if (orb.kind === 'ambient') this.ambientOrbCount++;
     else if (orb.kind === 'core') this.coreOrbCount++;
-    else if (orb.kind === 'loot') {
+    else if (orb.kind === 'trail') {
+      this.trailOrbCount++;
+      this.trailOrbQueue.push(orb.id);
+    } else if (orb.kind === 'loot' || orb.kind === 'star') {
       this.lootOrbCount++;
-      if (orb.value <= 2) {
-        this.lowLootQueue.push(orb.id);
-      }
+      this.deathLootQueue.push(orb.id);
     }
 
     const cx = Math.floor(orb.x / CELL_SIZE);
@@ -279,7 +299,10 @@ export class SimulationWorld {
 
     if (orb.kind === 'ambient') this.ambientOrbCount = Math.max(0, this.ambientOrbCount - 1);
     else if (orb.kind === 'core') this.coreOrbCount = Math.max(0, this.coreOrbCount - 1);
-    else if (orb.kind === 'loot') this.lootOrbCount = Math.max(0, this.lootOrbCount - 1);
+    else if (orb.kind === 'trail') this.trailOrbCount = Math.max(0, this.trailOrbCount - 1);
+    else if (orb.kind === 'loot' || orb.kind === 'star') {
+      this.lootOrbCount = Math.max(0, this.lootOrbCount - 1);
+    }
 
     const key = this.orbCellKeys.get(id);
     this.orbCellKeys.delete(id);
@@ -416,34 +439,36 @@ export class SimulationWorld {
     let bestPoint = { x: 0, y: 0 };
     let bestScore = -Infinity;
 
-    // Strictly prevent bots from abruptly spawning right next to the player on any difficulty
+    // Strictly prevent bots from abruptly spawning right next to the player on any difficulty!
     const safeRadius =
       this.difficulty === 'easy'
-        ? 1120
+        ? 1080
         : this.difficulty === 'medium'
-        ? 1000
-        : 920;
+        ? 980
+        : 940;
     const minPlayerDistSq = isBot && humanPlayer ? safeRadius * safeRadius : 0;
-    const minHeadDistSq = 340 * 340;
-    const minSegDistSq = 210 * 210;
+    const minHeadDistSq = 330 * 330;
+    const minSegDistSq = 200 * 200;
 
-    // In Medium/Hard, bias some spawns into an off-screen outer ring (980..1850px) so bots travel in naturally
-    const sectorChance =
-      this.difficulty === 'hard' ? 0.42 : this.difficulty === 'medium' ? 0.25 : 0;
-    const targetPlayerSector = isBot && humanPlayer && Math.random() < sectorChance;
+    // Anchor coordinates for the 35-40 bot Active Bubble (around human player, or center before spawn)
+    const centerX = humanPlayer ? humanPlayer.x : 0;
+    const centerY = humanPlayer ? humanPlayer.y : 0;
 
     for (let attempt = 0; attempt < 32; attempt++) {
       let x: number;
       let y: number;
 
-      if (targetPlayerSector && humanPlayer) {
+      if (isBot) {
         const ang = Math.random() * Math.PI * 2;
-        const dist = 980 + Math.random() * 880;
-        x = Math.max(-bound, Math.min(bound, humanPlayer.x + Math.cos(ang) * dist));
-        y = Math.max(-bound, Math.min(bound, humanPlayer.y + Math.sin(ang) * dist));
+        const minR = humanPlayer ? safeRadius + 70 : 320;
+        const maxR = ACTIVE_BUBBLE_RADIUS - 250;
+        const dist = minR + Math.random() * Math.max(200, maxR - minR);
+        x = Math.max(-bound, Math.min(bound, centerX + Math.cos(ang) * dist));
+        y = Math.max(-bound, Math.min(bound, centerY + Math.sin(ang) * dist));
       } else {
-        x = (Math.random() * 2 - 1) * bound;
-        y = (Math.random() * 2 - 1) * bound;
+        // Spawn human player in central 60% of arena with plenty of room
+        x = (Math.random() * 2 - 1) * (bound * 0.6);
+        y = (Math.random() * 2 - 1) * (bound * 0.6);
       }
 
       if (humanPlayer && isBot) {
@@ -457,7 +482,7 @@ export class SimulationWorld {
         }
       }
 
-      // Fast O(1) spatial hash check instead of scanning all 300 snakes!
+      // Fast O(1) spatial hash check
       const nearby = this.getNearbySegments(x, y, 1);
       if (nearby.length === 0) {
         return { x, y };
@@ -489,26 +514,37 @@ export class SimulationWorld {
     return bestPoint.x !== 0 || bestPoint.y !== 0
       ? bestPoint
       : {
-          x: (Math.random() * 2 - 1) * bound,
-          y: (Math.random() * 2 - 1) * bound,
+          x: (Math.random() * 2 - 1) * (bound * 0.6),
+          y: (Math.random() * 2 - 1) * (bound * 0.6),
         };
   }
 
   private seedInitialOrbs(): void {
     for (let i = 0; i < this.maxAmbientOrbs; i++) {
-      this.spawnAmbientOrb();
+      this.spawnAmbientOrb(false);
     }
     for (let i = 0; i < this.maxCores; i++) {
       this.spawnCoreOrb();
     }
   }
 
-  private spawnAmbientOrb(): void {
+  private spawnAmbientOrb(biasNearPlayer = false): void {
     const bound = this.worldHalfSize - 80;
-    const x = (Math.random() * 2 - 1) * bound;
-    const y = (Math.random() * 2 - 1) * bound;
+    let x: number;
+    let y: number;
+    const human = biasNearPlayer ? this.getHumanPlayer() : undefined;
+    if (human && Math.random() < 0.55) {
+      // Off-screen ring replenishment so player's active bubble always has fresh orbs!
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 940 + Math.random() * 1450;
+      x = Math.max(-bound, Math.min(bound, human.x + Math.cos(ang) * dist));
+      y = Math.max(-bound, Math.min(bound, human.y + Math.sin(ang) * dist));
+    } else {
+      x = (Math.random() * 2 - 1) * bound;
+      y = (Math.random() * 2 - 1) * bound;
+    }
     const roll = Math.random();
-    const value = roll > 0.9 ? 5 : roll > 0.55 ? 3 : 2;
+    const value = roll > 0.88 ? 5 : roll > 0.52 ? 3 : 2;
     const palette = this.map.orbPalette;
     const color = palette[Math.floor(Math.random() * palette.length)];
     const id = this.nextId('orb');
@@ -519,7 +555,7 @@ export class SimulationWorld {
         y,
         value,
         color,
-        value >= 5 ? 7.4 : value >= 3 ? 5.9 : 4.7,
+        value >= 5 ? 7.6 : value >= 3 ? 6.1 : 4.9,
         'ambient'
       )
     );
@@ -541,16 +577,20 @@ export class SimulationWorld {
     value: number,
     kind: OrbKind,
     color: string,
-    collectibleAfter?: number
+    collectibleAfter?: number,
+    botCollectibleAfter?: number
   ): void {
     if (value <= 0) return;
     const maxB = this.worldHalfSize - 40;
     const cx = Math.max(-maxB, Math.min(maxB, x));
     const cy = Math.max(-maxB, Math.min(maxB, y));
-    const id = this.nextId('loot');
-    const radius = Math.min(14, 5.8 + Math.sqrt(value) * 1.15);
+    const id = this.nextId(kind === 'trail' ? 'tr' : 'loot');
+    const radius =
+      kind === 'trail'
+        ? Math.min(8.5, 4.4 + Math.sqrt(value) * 0.85)
+        : Math.min(16.5, 7.2 + Math.sqrt(value) * 1.25);
     this.registerOrb(
-      this.acquireOrb(id, cx, cy, value, color, radius, kind, collectibleAfter)
+      this.acquireOrb(id, cx, cy, value, color, radius, kind, collectibleAfter, botCollectibleAfter)
     );
   }
 
@@ -622,8 +662,83 @@ export class SimulationWorld {
     this.snakes.set(id, snake);
     if (!params.isBot) {
       this.humanPlayerId = id;
+      // Ensure initial physical bots sit cleanly inside the active bubble (980..2250px from player)
+      const toRelocate: string[] = [];
+      for (const other of this.snakes.values()) {
+        if (!other.isBot || !other.alive) continue;
+        const d = Math.hypot(other.x - snake.x, other.y - snake.y);
+        if (d < 920 || d > ACTIVE_BUBBLE_RADIUS) {
+          toRelocate.push(other.id);
+        }
+      }
+      for (const bid of toRelocate) {
+        this.removeSnake(bid);
+        this.spawnVariedBot(false);
+      }
+      this.recomputeRanks(now);
     }
     return snake;
+  }
+
+  private seedVirtualRoster(): void {
+    this.virtualRoster = [];
+    const namePool = UNIFIED_BOT_NAMES;
+    const used = new Set<string>();
+
+    // Difficulty-calibrated #1 rank target:
+    // Easy: 15,000 - 20,000 | Medium: 20,000 - 25,000 | Hard: >25,000 (up to ~28,500!)
+    let topTarget = 17500;
+    if (this.difficulty === 'easy') {
+      topTarget = Math.floor(15300 + Math.random() * 4400);
+      this.leaderboardCeiling = 19950;
+    } else if (this.difficulty === 'medium') {
+      topTarget = Math.floor(20300 + Math.random() * 4400);
+      this.leaderboardCeiling = 24950;
+    } else {
+      topTarget = Math.floor(25500 + Math.random() * 3000);
+      this.leaderboardCeiling = 28900;
+    }
+
+    const bound = this.worldHalfSize - 500;
+    for (let i = 0; i < VIRTUAL_ROSTER_COUNT; i++) {
+      let chosen = namePool[Math.floor(Math.random() * namePool.length)].trim();
+      if (used.has(chosen)) {
+        chosen = `${chosen}_${Math.floor(10 + Math.random() * 89)}`;
+      }
+      used.add(chosen);
+
+      let score = 100;
+      if (i === 0) {
+        score = topTarget;
+      } else if (i < 10) {
+        const factor = Math.pow(0.895, i) * (0.97 + Math.random() * 0.05);
+        score = Math.max(3500, Math.round(topTarget * factor));
+      } else if (i < 50) {
+        const t = (i - 10) / 40;
+        score = Math.round(topTarget * (0.34 * Math.pow(1 - t, 1.45)) + 650 + Math.random() * 300);
+      } else if (i < 130) {
+        const t = (i - 50) / 80;
+        score = Math.round(1350 * (1 - t * 0.8) + Math.random() * 140);
+      } else {
+        score = Math.floor(22 + Math.random() * 260);
+      }
+
+      const poolIdx = i < 15 ? 80 : i < 60 ? 50 : 10;
+      const spec =
+        SNAKE_TYPES[
+          Math.min(SNAKE_TYPES.length - 1, poolIdx + Math.floor(Math.random() * 20))
+        ] || SNAKE_TYPES[0];
+
+      this.virtualRoster.push({
+        id: `virt_${i}`,
+        name: chosen.slice(0, 18),
+        snakeTypeId: spec.id,
+        score,
+        kills: i === 0 ? 18 + Math.floor(Math.random() * 14) : Math.max(0, Math.floor(score / 1100)),
+        x: Math.round((Math.random() * 2 - 1) * bound),
+        y: Math.round((Math.random() * 2 - 1) * bound),
+      });
+    }
   }
 
   private spawnVariedBot(
@@ -644,78 +759,63 @@ export class SimulationWorld {
     let initScore = 0;
     let snakePool = SNAKE_TYPES.slice(0, 25);
 
-    if (initialSeed && typeof seedSlotIndex === 'number') {
-      if (seedSlotIndex < 5) {
-        // Ranks 1 - 5: ~15,000 down to ~5,000
-        const topBands: Array<[number, number]> = [
-          [13100, 14950],
-          [10900, 12750],
-          [8800, 10550],
-          [6850, 8450],
-          [5120, 6550],
-        ];
-        const [minS, maxS] = topBands[seedSlotIndex];
-        initScore = Math.floor(minS + Math.random() * (maxS - minS));
-        tier = 'titan';
-        snakePool = SNAKE_TYPES.slice(82, 100);
-      } else if (seedSlotIndex < 20) {
-        // Ranks 6 - 20: ~5,000 down to ~2,000
-        const t = (seedSlotIndex - 5) / 14; // 0 .. 1
-        const center = 4820 - t * 2700; // 4820 -> 2120
-        const jitter = (Math.random() - 0.5) * 240;
-        initScore = Math.max(2020, Math.min(4960, Math.floor(center + jitter)));
-        tier = Math.random() < 0.8 ? 'strong' : 'normal';
-        snakePool = SNAKE_TYPES.slice(54, 88);
-      } else if (seedSlotIndex < 60) {
-        // Ranks 21 - 60: ~2,000 down to ~750
-        const t = (seedSlotIndex - 20) / 39;
-        const center = 1950 - t * 1170;
-        const jitter = (Math.random() - 0.5) * 120;
-        initScore = Math.max(750, Math.min(1990, Math.floor(center + jitter)));
-        tier = Math.random() < 0.45 ? 'strong' : 'normal';
-        snakePool = SNAKE_TYPES.slice(30, 65);
-      } else if (seedSlotIndex < 140) {
-        // Ranks 61 - 140: ~750 down to ~220
-        const t = (seedSlotIndex - 60) / 79;
-        const center = 740 - t * 510;
-        const jitter = (Math.random() - 0.5) * 60;
-        initScore = Math.max(210, Math.min(749, Math.floor(center + jitter)));
-        const r = Math.random();
-        tier = r < 0.22 ? 'weak' : r < 0.8 ? 'normal' : 'strong';
-        snakePool = SNAKE_TYPES.slice(12, 42);
+    const diffRoll = Math.random();
+    if (forcedBracket === 'veteran' || (initialSeed && typeof seedSlotIndex === 'number' && seedSlotIndex < 10)) {
+      initScore = Math.floor(680 + Math.random() * 2900);
+      tier = this.difficulty === 'hard' || Math.random() < 0.65 ? 'strong' : 'normal';
+      if (this.difficulty === 'hard' && Math.random() < 0.4) tier = 'titan';
+      snakePool = SNAKE_TYPES.slice(35, 88);
+    } else if (this.difficulty === 'hard') {
+      // Slightly tougher bot mix in Hard mode
+      if (diffRoll < 0.12) {
+        tier = 'weak';
+        initScore = Math.floor(35 + Math.random() * 140);
+        snakePool = SNAKE_TYPES.slice(0, 28);
+      } else if (diffRoll < 0.42) {
+        tier = 'normal';
+        initScore = Math.floor(110 + Math.random() * 540);
+        snakePool = SNAKE_TYPES.slice(15, 55);
+      } else if (diffRoll < 0.8) {
+        tier = 'strong';
+        initScore = Math.floor(240 + Math.random() * 980);
+        snakePool = SNAKE_TYPES.slice(40, 82);
       } else {
-        // Ranks 141 - ~300: ~210 down to ~18 (varied skill tiers including agile hunters & weak bots)
-        const r = Math.random();
-        initScore = Math.floor(18 + Math.pow(Math.random(), 1.3) * 190);
-        tier = r < 0.34 ? 'weak' : r < 0.78 ? 'normal' : 'strong';
-        snakePool = SNAKE_TYPES.slice(0, 26);
+        tier = 'titan';
+        initScore = Math.floor(650 + Math.random() * 1900);
+        snakePool = SNAKE_TYPES.slice(72, 100);
       }
-    } else if (forcedBracket === 'top5') {
-      initScore = Math.floor(5250 + Math.random() * 8800);
-      tier = 'titan';
-      snakePool = SNAKE_TYPES.slice(80, 100);
-    } else if (forcedBracket === 'top20') {
-      initScore = Math.floor(2080 + Math.random() * 2820);
-      tier = Math.random() < 0.78 ? 'strong' : 'normal';
-      snakePool = SNAKE_TYPES.slice(52, 88);
-    } else if (forcedBracket === 'veteran') {
-      initScore = Math.floor(760 + Math.random() * 1180);
-      tier = Math.random() < 0.45 ? 'strong' : 'normal';
-      snakePool = SNAKE_TYPES.slice(28, 62);
+    } else if (this.difficulty === 'medium') {
+      if (diffRoll < 0.24) {
+        tier = 'weak';
+        initScore = Math.floor(22 + Math.random() * 110);
+        snakePool = SNAKE_TYPES.slice(0, 24);
+      } else if (diffRoll < 0.66) {
+        tier = 'normal';
+        initScore = Math.floor(65 + Math.random() * 420);
+        snakePool = SNAKE_TYPES.slice(12, 50);
+      } else if (diffRoll < 0.9) {
+        tier = 'strong';
+        initScore = Math.floor(180 + Math.random() * 760);
+        snakePool = SNAKE_TYPES.slice(35, 78);
+      } else {
+        tier = 'titan';
+        initScore = Math.floor(500 + Math.random() * 1400);
+        snakePool = SNAKE_TYPES.slice(68, 96);
+      }
     } else {
-      const r = Math.random();
-      if (r < 0.3) {
+      // Easy (calm classic mix)
+      if (diffRoll < 0.38) {
         tier = 'weak';
         initScore = Math.floor(15 + Math.random() * 95);
         snakePool = SNAKE_TYPES.slice(0, 22);
-      } else if (r < 0.75) {
+      } else if (diffRoll < 0.82) {
         tier = 'normal';
         initScore = Math.floor(45 + Math.random() * 340);
         snakePool = SNAKE_TYPES.slice(10, 48);
       } else {
         tier = 'strong';
-        initScore = Math.floor(120 + Math.random() * 560);
-        snakePool = SNAKE_TYPES.slice(35, 78);
+        initScore = Math.floor(140 + Math.random() * 580);
+        snakePool = SNAKE_TYPES.slice(32, 74);
       }
     }
 
@@ -913,8 +1013,9 @@ export class SimulationWorld {
     }
 
     const spec = getSnakeSpec(victim.snakeTypeId);
-    // Generous death drop: 85% of score and at least 5.2 points per segment!
+    // Generous, unmistakable death drop: min 48 score so every piece is >= 3 score & bright round ball!
     const totalDropScore = Math.max(
+      48,
       Math.floor(victim.segments.length * 5.2),
       Math.floor(Math.max(0, victim.score) * 0.85)
     );
@@ -922,19 +1023,19 @@ export class SimulationWorld {
     if (totalDropScore > 0) {
       this.trimExcessLootOrbs();
 
+      const maxPiecesByMinVal = Math.max(12, Math.floor(totalDropScore / 3));
+      const desiredPieces =
+        Math.floor(victim.segments.length * 1.45) + (victim.score > 300 ? 32 : 12);
       const totalPieces = Math.max(
-        22,
-        Math.min(
-          Math.floor(victim.segments.length * 1.8) + (victim.score > 300 ? 38 : 14),
-          220,
-          totalDropScore
-        )
+        14,
+        Math.min(desiredPieces, 150, maxPiecesByMinVal)
       );
 
-      const basePieceValue = Math.max(1, Math.floor(totalDropScore / totalPieces));
+      const basePieceValue = Math.max(3, Math.floor(totalDropScore / totalPieces));
       let remaining = totalDropScore;
-      // Brief 420ms delay before orbs can be eaten: allows death burst to scatter and prevents instant vacuum
-      const eatDelayUntil = now + 420;
+      // Human sees brief 140ms pop & can collect right away; Bots wait 1.65s so dropped orbs NEVER vanish instantly!
+      const playerDelayUntil = now + 140;
+      const botDelayUntil = now + 1650;
 
       for (let i = 0; i < totalPieces && remaining > 0; i++) {
         const pieceVal =
@@ -948,13 +1049,13 @@ export class SimulationWorld {
         );
         const seg = victim.segments[segIdx] || { x: victim.x, y: victim.y };
 
-        const scatterR = Math.min(52, 16 + Math.sqrt(victim.radius) * 3.4);
+        const scatterR = Math.min(48, 16 + Math.sqrt(victim.radius) * 3.2);
         const jitterX = (Math.random() - 0.5) * scatterR * 2;
         const jitterY = (Math.random() - 0.5) * scatterR * 2;
 
         const orbColor =
           i % 6 === 0 ? '#38bdf8' : i % 4 === 0 ? spec.accentColor : spec.primaryColor;
-        const orbKind = i % 8 === 0 && pieceVal >= 6 ? 'star' : 'loot';
+        const orbKind = i % 7 === 0 && pieceVal >= 6 ? 'star' : 'loot';
 
         this.spawnOrbAt(
           seg.x + jitterX,
@@ -962,22 +1063,24 @@ export class SimulationWorld {
           pieceVal,
           orbKind,
           orbColor,
-          eatDelayUntil
+          playerDelayUntil,
+          botDelayUntil
         );
       }
 
-      if (victim.score > 200) {
-        const headBursts = Math.min(10, Math.floor(victim.score / 150));
+      if (victim.score > 160) {
+        const headBursts = Math.min(10, Math.max(3, Math.floor(victim.score / 130)));
         for (let b = 0; b < headBursts; b++) {
           const ang = (Math.PI * 2 * b) / headBursts + Math.random() * 0.4;
           const dist = 14 + Math.random() * 28;
           this.spawnOrbAt(
             victim.x + Math.cos(ang) * dist,
             victim.y + Math.sin(ang) * dist,
-            Math.max(6, Math.floor(basePieceValue * 2.0)),
+            Math.max(8, Math.floor(basePieceValue * 2.2)),
             'core',
             '#facc15',
-            eatDelayUntil
+            playerDelayUntil,
+            botDelayUntil
           );
         }
       }
@@ -1016,21 +1119,38 @@ export class SimulationWorld {
     return totalDropScore;
   }
 
-  private trimExcessLootOrbs(): void {
-    if (this.lootOrbCount <= this.maxLootOrbs) return;
-    let toRemove = this.lootOrbCount - this.maxLootOrbs + 160;
-    // O(1) amortized FIFO trim of low-value boost trail pellets only (NEVER scans all orbs!)
-    while (toRemove > 0 && this.lowLootHead < this.lowLootQueue.length) {
-      const id = this.lowLootQueue[this.lowLootHead++];
+  private trimExcessTrailOrbs(): void {
+    if (this.trailOrbCount <= this.maxTrailOrbs) return;
+    let toRemove = this.trailOrbCount - this.maxTrailOrbs + 80;
+    while (toRemove > 0 && this.trailOrbHead < this.trailOrbQueue.length) {
+      const id = this.trailOrbQueue[this.trailOrbHead++];
       const o = this.orbs.get(id);
-      if (o && o.kind === 'loot' && o.value <= 2) {
+      if (o && o.kind === 'trail') {
         this.unregisterOrb(id);
         toRemove--;
       }
     }
-    if (this.lowLootHead > 2000) {
-      this.lowLootQueue = this.lowLootQueue.slice(this.lowLootHead);
-      this.lowLootHead = 0;
+    if (this.trailOrbHead > 1200) {
+      this.trailOrbQueue = this.trailOrbQueue.slice(this.trailOrbHead);
+      this.trailOrbHead = 0;
+    }
+  }
+
+  private trimExcessLootOrbs(): void {
+    if (this.lootOrbCount <= this.maxLootOrbs) return;
+    let toRemove = this.lootOrbCount - this.maxLootOrbs + 160;
+    // O(1) amortized FIFO trim of oldest expired death drops only when exceeding 14,000 death orbs
+    while (toRemove > 0 && this.deathLootHead < this.deathLootQueue.length) {
+      const id = this.deathLootQueue[this.deathLootHead++];
+      const o = this.orbs.get(id);
+      if (o && (o.kind === 'loot' || o.kind === 'star')) {
+        this.unregisterOrb(id);
+        toRemove--;
+      }
+    }
+    if (this.deathLootHead > 2000) {
+      this.deathLootQueue = this.deathLootQueue.slice(this.deathLootHead);
+      this.deathLootHead = 0;
     }
   }
 
@@ -1500,138 +1620,176 @@ export class SimulationWorld {
   }
 
   private recomputeRanks(now = Date.now()): void {
-    const aliveList: SnakeEntity[] = [];
-    for (const s of this.snakes.values()) {
-      if (s.alive && !s.isDecoy) aliveList.push(s);
-    }
-    aliveList.sort((a, b) => b.score - a.score);
+    const entries: Array<{
+      id: string;
+      name: string;
+      score: number;
+      kills: number;
+      snakeTypeId: string;
+      x: number;
+      y: number;
+      realSnake?: SnakeEntity;
+    }> = [];
 
-    this.cachedTotalPlayers = aliveList.length;
+    for (const s of this.snakes.values()) {
+      if (s.alive && !s.isDecoy) {
+        entries.push({
+          id: s.id,
+          name: s.name,
+          score: Math.floor(s.score),
+          kills: s.kills,
+          snakeTypeId: s.snakeTypeId,
+          x: s.x,
+          y: s.y,
+          realSnake: s,
+        });
+      }
+    }
+
+    for (let i = 0; i < this.virtualRoster.length; i++) {
+      const v = this.virtualRoster[i];
+      entries.push({
+        id: v.id,
+        name: v.name,
+        score: Math.floor(v.score),
+        kills: v.kills,
+        snakeTypeId: v.snakeTypeId,
+        x: v.x,
+        y: v.y,
+      });
+    }
+
+    entries.sort((a, b) => b.score - a.score);
+
+    this.cachedTotalPlayers = entries.length;
     const ranks: Record<string, number> = {};
-    const leaderId = aliveList[0]?.id;
+    const leaderId = entries[0]?.id;
     const dots: MinimapDot[] = [];
 
-    for (let i = 0; i < aliveList.length; i++) {
+    for (let i = 0; i < entries.length; i++) {
       const rank = i + 1;
-      const s = aliveList[i];
-      ranks[s.id] = rank;
-      if (rank < s.bestRank) {
-        s.bestRank = rank;
-      }
-      if (now >= s.stealthUntil) {
+      const e = entries[i];
+      ranks[e.id] = rank;
+      if (e.realSnake) {
+        if (rank < e.realSnake.bestRank) {
+          e.realSnake.bestRank = rank;
+        }
+        if (now >= e.realSnake.stealthUntil) {
+          dots.push({
+            id: e.id,
+            x: Math.round(e.x),
+            y: Math.round(e.y),
+            isLeader: e.id === leaderId,
+          });
+        }
+      } else if (e.id === leaderId || i % 3 === 0) {
+        // Show virtual #1 leader dot and distributed arena dots on minimap cleanly
         dots.push({
-          id: s.id,
-          x: Math.round(s.x),
-          y: Math.round(s.y),
-          isLeader: s.id === leaderId,
+          id: e.id,
+          x: e.x,
+          y: e.y,
+          isLeader: e.id === leaderId,
         });
       }
     }
 
     this.cachedRanks = ranks;
     this.cachedMinimapDots = dots;
-    this.cachedLeaderboard = aliveList.slice(0, 10).map((s) => ({
-      id: s.id,
-      name: s.name,
-      score: Math.floor(s.score),
-      kills: s.kills,
-      snakeTypeId: s.snakeTypeId,
+    this.cachedLeaderboard = entries.slice(0, 10).map((e) => ({
+      id: e.id,
+      name: e.name,
+      score: e.score,
+      kills: e.kills,
+      snakeTypeId: e.snakeTypeId,
     }));
   }
 
   private maintainPopulation(now = Date.now(), initialSeed = false): void {
-    let nonDecoyCount = 0;
-    let botCount = 0;
-    let top5Count = 0;
-    let top20Count = 0;
-    let veteranCount = 0;
+    const human = this.getHumanPlayer();
     const usedNames = new Set<string>();
 
+    // Recycle any physical bot that wandered beyond the player's 2500px Active Bubble!
+    if (human && !initialSeed) {
+      const maxDistSq = ACTIVE_BUBBLE_RADIUS * ACTIVE_BUBBLE_RADIUS;
+      const staleIds: string[] = [];
+      for (const s of this.snakes.values()) {
+        if (s.alive && s.isBot && !s.isDecoy) {
+          const dx = s.x - human.x;
+          const dy = s.y - human.y;
+          if (dx * dx + dy * dy > maxDistSq) {
+            staleIds.push(s.id);
+          }
+        }
+      }
+      for (let i = 0; i < staleIds.length; i++) {
+        this.removeSnake(staleIds[i]);
+      }
+    }
+
+    let botCount = 0;
+    let veteranCount = 0;
     for (const s of this.snakes.values()) {
       if (s.alive && !s.isDecoy) {
-        nonDecoyCount++;
         usedNames.add(s.name);
         if (s.isBot) {
           botCount++;
-          if (s.score >= 5000) top5Count++;
-          else if (s.score >= 2000) top20Count++;
-          else if (s.score >= 750) veteranCount++;
+          if (s.score >= 650) veteranCount++;
         }
       }
     }
 
-    // Gently fluctuate around ~200 active snakes (190 .. 208) for peak mobile FPS
-    if (!initialSeed && Math.random() < 0.12) {
+    // Gently fluctuate active physical bot count strictly within 35..40 for maximum mobile FPS!
+    if (!initialSeed && Math.random() < 0.2) {
       this.targetPopulation = Math.max(
-        190,
-        Math.min(208, this.targetPopulation + (Math.random() < 0.5 ? -2 : 2))
+        ACTIVE_BOT_MIN,
+        Math.min(ACTIVE_BOT_MAX, this.targetPopulation + (Math.random() < 0.5 ? -1 : 1))
       );
     }
 
-    if (nonDecoyCount > this.targetPopulation && botCount > 0) {
-      let excess = Math.min(botCount, nonDecoyCount - this.targetPopulation);
+    if (botCount > this.targetPopulation) {
+      let excess = botCount - this.targetPopulation;
       for (const [id, s] of this.snakes.entries()) {
-        // Only trim small/low-score bots so leaderboard giants aren't artificially despawned
         if (s.isBot && !s.isDecoy && s.score < 500 && excess > 0) {
           this.removeSnake(id);
           excess--;
         }
       }
-    } else if (nonDecoyCount < this.targetPopulation) {
+    } else if (botCount < this.targetPopulation) {
       const toSpawn = initialSeed
-        ? this.targetPopulation - nonDecoyCount
-        : Math.min(8, this.targetPopulation - nonDecoyCount);
+        ? this.targetPopulation - botCount
+        : Math.min(5, this.targetPopulation - botCount);
       for (let i = 0; i < toSpawn; i++) {
         if (initialSeed) {
           this.spawnVariedBot(true, usedNames, i);
         } else {
-          let bracket: 'top5' | 'top20' | 'veteran' | 'general' = 'general';
-          if (top5Count < 5) {
-            bracket = 'top5';
-            top5Count++;
-          } else if (top20Count < 15) {
-            bracket = 'top20';
-            top20Count++;
-          } else if (veteranCount < 30) {
-            bracket = 'veteran';
-            veteranCount++;
-          }
+          const bracket = veteranCount < 5 ? 'veteran' : 'general';
+          if (bracket === 'veteran') veteranCount++;
           this.spawnVariedBot(false, usedNames, undefined, bracket);
         }
       }
     }
 
-    // In Medium/Hard only, keep bots active in broader off-screen perimeter (never pop-in near player!)
-    const human = this.getHumanPlayer();
-    if (human && !initialSeed && this.difficulty !== 'easy') {
-      let botsNearby = 0;
-      let closestBotDistSq = Infinity;
-      const checkR = this.difficulty === 'hard' ? 1500 : 1750;
-      const checkRSq = checkR * checkR;
-      for (const s of this.snakes.values()) {
-        if (s.alive && s.isBot && !s.isDecoy) {
-          const dx = s.x - human.x;
-          const dy = s.y - human.y;
-          const d2 = dx * dx + dy * dy;
-          if (d2 < checkRSq) botsNearby++;
-          if (d2 < closestBotDistSq) closestBotDistSq = d2;
+    // Gently evolve virtual leaderboard scores up toward difficulty target (never exceeding ceiling)
+    if (!initialSeed && this.virtualRoster.length > 0) {
+      for (let k = 0; k < 6; k++) {
+        const idx = Math.floor(Math.random() * Math.min(40, this.virtualRoster.length));
+        const v = this.virtualRoster[idx];
+        const maxAllowed = idx === 0 ? this.leaderboardCeiling : this.leaderboardCeiling * 0.94;
+        if (v.score < maxAllowed) {
+          v.score = Math.min(maxAllowed, v.score + Math.floor(8 + Math.random() * 35));
         }
-      }
-
-      if (botsNearby < 1 || closestBotDistSq > checkRSq) {
-        this.spawnBotNearPlayer(human, usedNames);
       }
     }
     void now;
   }
 
   private maintainOrbs(): void {
-    // Trickle replenish smoothly (max 120 orbs/sec) to eliminate 1-second frame spikes
-    const deficit = Math.min(120, this.maxAmbientOrbs - this.ambientOrbCount);
+    // Trickle replenish smoothly (max 100 orbs/sec), biasing 55% around player's active sector!
+    const deficit = Math.min(100, this.maxAmbientOrbs - this.ambientOrbCount);
     for (let i = 0; i < deficit; i++) {
-      this.spawnAmbientOrb();
+      this.spawnAmbientOrb(true);
     }
-    const coreDeficit = Math.min(14, this.maxCores - this.coreOrbCount);
+    const coreDeficit = Math.min(10, this.maxCores - this.coreOrbCount);
     for (let i = 0; i < coreDeficit; i++) {
       this.spawnCoreOrb();
     }
@@ -1658,6 +1816,8 @@ export class SimulationWorld {
         const nearOrbs = this.getNearbyOrbs(s.x, s.y, span);
         for (let i = 0; i < nearOrbs.length; i++) {
           const orb = nearOrbs[i];
+          if (orb.collectibleAfter && now < orb.collectibleAfter) continue;
+          if (s.isBot && orb.botCollectibleAfter && now < orb.botCollectibleAfter) continue;
           const d2 = distSq(s.x, s.y, orb.x, orb.y);
           if (d2 > 1 && d2 <= rSq) {
             const d = Math.sqrt(d2);
@@ -1952,15 +2112,16 @@ export class SimulationWorld {
       const drainRate = 7 * (1 - eff);
       const drain = (this.boostDrainAccum.get(s.id) || 0) + dt * drainRate;
 
-      // Drop glowing food pellets behind ANY boosting snake (bots & player)
+      // Drop glowing trail food pellets behind boosting snakes using separate O(1) trail pool
       const prevTrail = (this.trailSpawnAccum.get(s.id) || 0) + dt;
-      if (prevTrail >= 0.11) {
+      if (prevTrail >= 0.14) {
         this.trailSpawnAccum.set(s.id, 0);
         const tail = s.segments[s.segments.length - 1] || s;
         const jx = tail.x + (Math.random() - 0.5) * 8;
         const jy = tail.y + (Math.random() - 0.5) * 8;
-        const dropVal = Math.max(1, Math.min(5, Math.floor(s.score * 0.005) + 1));
-        this.spawnOrbAt(jx, jy, dropVal, 'loot', spec.primaryColor);
+        const dropVal = Math.max(1, Math.min(4, Math.floor(s.score * 0.004) + 1));
+        this.spawnOrbAt(jx, jy, dropVal, 'trail', spec.primaryColor);
+        this.trimExcessTrailOrbs();
       } else {
         this.trailSpawnAccum.set(s.id, prevTrail);
       }
@@ -2069,8 +2230,9 @@ export class SimulationWorld {
     for (let i = 0; i < nearby.length; i++) {
       const orb = nearby[i];
       if (!this.orbs.has(orb.id)) continue;
-      // Do not collect freshly dropped death orbs until brief scatter delay expires
+      // Enforce scatter delay (140ms) and bot grace period (1650ms) so dropped death orbs stay visible!
       if (orb.collectibleAfter && now < orb.collectibleAfter) continue;
+      if (s.isBot && orb.botCollectibleAfter && now < orb.botCollectibleAfter) continue;
       const d2 = distSq(s.x, s.y, orb.x, orb.y);
       const limitSq = eatSq + orb.radius * orb.radius;
 
@@ -2408,7 +2570,7 @@ export class SimulationWorld {
 
     const diffReactionMult =
       this.difficulty === 'hard'
-        ? 0.78
+        ? 0.66
         : this.difficulty === 'medium'
         ? 0.88
         : 1.05;
@@ -2429,7 +2591,9 @@ export class SimulationWorld {
         ? 300
         : tier === 'strong'
         ? 400
-        : 450) + bot.radius * 2.4;
+        : 450) +
+      bot.radius * 2.4 +
+      (this.difficulty === 'hard' ? 35 : 0);
 
     const safetyPad =
       tier === 'weak' ? 6 : tier === 'normal' ? 18 : tier === 'strong' ? 28 : 34;
@@ -2442,7 +2606,7 @@ export class SimulationWorld {
     let huntTargetScore = -Infinity;
     let closestEnemyHeadDist = Infinity;
 
-    // Direct Player Awareness scales with difficulty (Easy: none, Medium: 740px, Hard: 900px)
+    // Direct Player Awareness scales with difficulty (Easy: none, Medium: 740px, Hard: 1080px)
     const humanPlayer = this.getHumanPlayer();
     let distToHuman = Infinity;
     if (humanPlayer && humanPlayer.alive && now >= humanPlayer.stealthUntil) {
@@ -2451,14 +2615,14 @@ export class SimulationWorld {
         closestEnemyHeadDist = distToHuman;
       }
       const playerHuntRange =
-        this.difficulty === 'hard' ? 900 : this.difficulty === 'medium' ? 740 : 0;
+        this.difficulty === 'hard' ? 1080 : this.difficulty === 'medium' ? 740 : 0;
       if (
         playerHuntRange > 0 &&
         (tier === 'strong' || tier === 'titan') &&
         distToHuman < playerHuntRange &&
-        bot.score >= 35
+        bot.score >= 30
       ) {
-        const scoreVal = (playerHuntRange + 100 - distToHuman) + (this.difficulty === 'hard' ? 260 : 120);
+        const scoreVal = (playerHuntRange + 140 - distToHuman) + (this.difficulty === 'hard' ? 340 : 120);
         if (scoreVal > huntTargetScore) {
           huntTargetScore = scoreVal;
           huntTarget = humanPlayer;
@@ -2479,9 +2643,9 @@ export class SimulationWorld {
       }
 
       // Strong & Titan hunters actively target nearby snakes to cut them off!
-      const huntRange = this.difficulty === 'easy' ? 600 : this.difficulty === 'medium' ? 650 : 700;
-      if ((tier === 'strong' || tier === 'titan') && d < huntRange && bot.score >= 40) {
-        const humanBonus = !other.isBot && this.difficulty !== 'easy' ? (this.difficulty === 'hard' ? 200 : 90) : 0;
+      const huntRange = this.difficulty === 'easy' ? 600 : this.difficulty === 'medium' ? 650 : 760;
+      if ((tier === 'strong' || tier === 'titan') && d < huntRange && bot.score >= 35) {
+        const humanBonus = !other.isBot && this.difficulty !== 'easy' ? (this.difficulty === 'hard' ? 260 : 90) : 0;
         const scoreVal = (huntRange + 40 - d) + humanBonus + Math.min(160, other.score * 0.08);
         if (scoreVal > huntTargetScore) {
           huntTargetScore = scoreVal;
@@ -2495,15 +2659,17 @@ export class SimulationWorld {
     let wantsBoost = false;
     let isGreedyDive = false;
 
-    // Check for juicy loot orbs first
+    // Scan nearby collectible orbs (respecting bot grace delay on fresh death drops!)
     let bestLootOrb: Orb | null = null;
     let bestLootPriority = -Infinity;
     for (let i = 0; i < nearOrbs.length; i++) {
       const orb = nearOrbs[i];
+      if (orb.collectibleAfter && now < orb.collectibleAfter) continue;
+      if (orb.botCollectibleAfter && now < orb.botCollectibleAfter) continue;
       const d2 = distSq(bot.x, bot.y, orb.x, orb.y);
-      if (d2 > 500 * 500) continue;
+      if (d2 > 380 * 380) continue;
       const d = Math.sqrt(d2) + 24;
-      const mult = orb.kind === 'loot' || orb.kind === 'star' ? 3.8 : orb.kind === 'core' ? 4.2 : 1.1;
+      const mult = orb.kind === 'loot' || orb.kind === 'star' ? 2.6 : orb.kind === 'core' ? 3.5 : 1.1;
       const prio = (orb.value * mult) / d;
       if (prio > bestLootPriority) {
         bestLootPriority = prio;
@@ -2516,7 +2682,7 @@ export class SimulationWorld {
       (bestLootOrb.kind === 'loot' || bestLootOrb.kind === 'star' || bestLootOrb.value >= 8)
     ) {
       desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
-      wantsBoost = bot.score >= 8 && Math.random() < 0.75;
+      wantsBoost = bot.score >= 8 && Math.random() < 0.45;
       // Weak bots occasionally tunnel-vision onto shiny loot piles
       isGreedyDive = tier === 'weak' && Math.random() < 0.35;
     } else if (huntTarget && (tier === 'strong' || tier === 'titan')) {
@@ -2528,38 +2694,38 @@ export class SimulationWorld {
       const forwardLead = toMeX * tCos + toMeY * tSin; // > 0 means bot is already ahead of target's head!
       const lateralOffset = toMeX * -tSin + toMeY * tCos;
 
-      if (forwardLead > 45 && Math.abs(lateralOffset) < 210) {
+      if (forwardLead > 45 && Math.abs(lateralOffset) < 220) {
         // Already ahead of target's nose — swerve sharply across their path to cut them off!
         const cutSign = lateralOffset >= 0 ? -1 : 1;
         desiredAngle = normalizeAngle(huntTarget.angle + cutSign * 1.18);
         wantsBoost = bot.score >= 10;
-        if (now >= bot.abilityCooldownUntil && Math.random() < 0.22) {
+        if (now >= bot.abilityCooldownUntil && Math.random() < (this.difficulty === 'hard' ? 0.34 : 0.22)) {
           this.castAbility(bot, now);
         }
       } else {
         // Sprint toward an intercept point ahead of the target's trajectory
-        const leadDist = tier === 'titan' ? 235 : 185;
+        const leadDist = tier === 'titan' ? 245 : 195;
         const sideSign = lateralOffset >= 0 ? 1 : -1;
-        const flankOffset = Math.max(55, bot.radius + huntTarget.radius + 38) * sideSign;
+        const flankOffset = Math.max(55, bot.radius + huntTarget.radius + 36) * sideSign;
         const ix = huntTarget.x + tCos * leadDist + -tSin * flankOffset;
         const iy = huntTarget.y + tSin * leadDist + tCos * flankOffset;
         desiredAngle = Math.atan2(iy - bot.y, ix - bot.x);
         wantsBoost =
           bot.score >= 10 &&
-          closestEnemyHeadDist < 500 &&
-          Math.random() < (tier === 'titan' ? 0.78 : 0.62);
+          closestEnemyHeadDist < 560 &&
+          Math.random() < (this.difficulty === 'hard' ? 0.82 : tier === 'titan' ? 0.74 : 0.58);
       }
     } else if (
       this.difficulty === 'hard' &&
       humanPlayer &&
-      distToHuman < 1200 &&
+      distToHuman < 1400 &&
       distToHuman > 240
     ) {
-      // Hard Mode: Bots actively gravitate toward player to make the match intense!
+      // Hard Mode: Bots actively gravitate toward player to make the match extra intense!
       const angleToPlayer = Math.atan2(humanPlayer.y - bot.y, humanPlayer.x - bot.x);
-      const wander = (Math.random() - 0.5) * (tier === 'weak' ? 0.45 : 0.25);
+      const wander = (Math.random() - 0.5) * (tier === 'weak' ? 0.35 : 0.22);
       desiredAngle = angleToPlayer + wander;
-      wantsBoost = bot.score >= 10 && distToHuman < 820 && Math.random() < 0.60;
+      wantsBoost = bot.score >= 10 && distToHuman < 950 && Math.random() < 0.72;
     } else if (
       this.difficulty === 'medium' &&
       humanPlayer &&
