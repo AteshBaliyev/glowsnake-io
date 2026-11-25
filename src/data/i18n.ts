@@ -201,6 +201,13 @@ export interface UITranslations {
   hudLeaderboard: string;
   hudScorebar: string;
   adCooldownWait: string;
+  difficultyLabel: string;
+  diffEasy: string;
+  diffEasyDesc: string;
+  diffMedium: string;
+  diffMediumDesc: string;
+  diffHard: string;
+  diffHardDesc: string;
 }
 
 export const UI_TEXT: Record<LanguageCode, UITranslations> = {
@@ -327,6 +334,13 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     hudLeaderboard: 'Leaderboard',
     hudScorebar: 'Score Bar',
     adCooldownWait: 'Please wait {sec}s before next ad',
+    difficultyLabel: 'Game Difficulty',
+    diffEasy: 'Easy',
+    diffEasyDesc: 'Classic calm bots • 1.0x Score',
+    diffMedium: 'Medium',
+    diffMediumDesc: 'Balanced challenge • 1.4x Score',
+    diffHard: 'Hard',
+    diffHardDesc: 'Aggressive hunters • 2.0x Score',
   },
   az: {
     nicknamePlaceholder: 'Ləqəb daxil edin...',
@@ -451,6 +465,13 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     hudLeaderboard: 'Liderlər',
     hudScorebar: 'Xal Paneli',
     adCooldownWait: 'Növbəti reklam üçün {sec} san. gözləyin',
+    difficultyLabel: 'Oyun Səviyyəsi',
+    diffEasy: 'Asan',
+    diffEasyDesc: 'Klassik sakit botlar • 1.0x Xal',
+    diffMedium: 'Orta',
+    diffMediumDesc: 'Balanslı rəqabət • 1.4x Xal',
+    diffHard: 'Çətin',
+    diffHardDesc: 'Aqressiv ovçular • 2.0x Xal',
   },
   tr: {
     nicknamePlaceholder: 'Takma ad girin...',
@@ -575,6 +596,13 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     hudLeaderboard: 'Liderler',
     hudScorebar: 'Skor Çubuğu',
     adCooldownWait: 'Sonraki reklam için {sec} sn. bekleyin',
+    difficultyLabel: 'Oyun Zorluğu',
+    diffEasy: 'Kolay',
+    diffEasyDesc: 'Klasik sakin botlar • 1.0x Skor',
+    diffMedium: 'Orta',
+    diffMediumDesc: 'Dengeli rekabet • 1.4x Skor',
+    diffHard: 'Zor',
+    diffHardDesc: 'Agresif avcılar • 2.0x Skor',
   },
   ru: {
     nicknamePlaceholder: 'Введите никнейм...',
@@ -699,6 +727,13 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     hudLeaderboard: 'Лидеры',
     hudScorebar: 'Панель очков',
     adCooldownWait: 'Подождите {sec} сек. перед следующим просмотром',
+    difficultyLabel: 'Сложность игры',
+    diffEasy: 'Легко',
+    diffEasyDesc: 'Спокойные боты • 1.0x Очки',
+    diffMedium: 'Средне',
+    diffMediumDesc: 'Сбалансированный режим • 1.4x Очки',
+    diffHard: 'Сложно',
+    diffHardDesc: 'Агрессивные охотники • 2.0x Очки',
   },
   es: {
     nicknamePlaceholder: 'Ingresa tu apodo...',
@@ -823,6 +858,13 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     hudLeaderboard: 'Líderes',
     hudScorebar: 'Barra de Puntos',
     adCooldownWait: 'Espera {sec}s antes del próximo anuncio',
+    difficultyLabel: 'Dificultad',
+    diffEasy: 'Fácil',
+    diffEasyDesc: 'Bots tranquilos • 1.0x Puntos',
+    diffMedium: 'Medio',
+    diffMediumDesc: 'Desafío equilibrado • 1.4x Puntos',
+    diffHard: 'Difícil',
+    diffHardDesc: 'Cazadores agresivos • 2.0x Puntos',
   },
   pt: {
     nicknamePlaceholder: 'Digite seu apelido...',
@@ -947,6 +989,13 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     hudLeaderboard: 'Líderes',
     hudScorebar: 'Barra de Pontos',
     adCooldownWait: 'Aguarde {sec}s antes do próximo anúncio',
+    difficultyLabel: 'Dificuldade',
+    diffEasy: 'Fácil',
+    diffEasyDesc: 'Bots calmos • 1.0x Pontos',
+    diffMedium: 'Médio',
+    diffMediumDesc: 'Desafio equilibrado • 1.4x Pontos',
+    diffHard: 'Difícil',
+    diffHardDesc: 'Caçadores agressivos • 2.0x Pontos',
   },
   de: {
     nicknamePlaceholder: 'Spitzname eingeben...',
@@ -1071,6 +1120,13 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     hudLeaderboard: 'Bestenliste',
     hudScorebar: 'Punktebalken',
     adCooldownWait: 'Bitte {sec}s bis zur nächsten Anzeige warten',
+    difficultyLabel: 'Schwierigkeit',
+    diffEasy: 'Leicht',
+    diffEasyDesc: 'Klassische Bots • 1.0x Punkte',
+    diffMedium: 'Mittel',
+    diffMediumDesc: 'Ausgeglichen • 1.4x Punkte',
+    diffHard: 'Schwer',
+    diffHardDesc: 'Aggressive Jäger • 2.0x Punkte',
   },
   fr: {
     nicknamePlaceholder: 'Entrez un pseudo...',
@@ -1195,5 +1251,12 @@ export const UI_TEXT: Record<LanguageCode, UITranslations> = {
     hudLeaderboard: 'Classement',
     hudScorebar: 'Barre de Points',
     adCooldownWait: 'Veuillez attendre {sec}s avant la prochaine pub',
+    difficultyLabel: 'Difficulté',
+    diffEasy: 'Facile',
+    diffEasyDesc: 'Bots calmes • 1.0x Score',
+    diffMedium: 'Moyen',
+    diffMediumDesc: 'Défi équilibré • 1.4x Score',
+    diffHard: 'Difficile',
+    diffHardDesc: 'Chasseurs agressifs • 2.0x Score',
   },
 };

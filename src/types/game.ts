@@ -1,4 +1,5 @@
 export type GameMode = 'offline' | 'online';
+export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
 export type LanguageCode =
   | 'en'
@@ -324,6 +325,7 @@ export interface PlayerProfile extends PlayerSettings {
   selectedSnakeId: string;
   selectedMapId: MapId;
   preferredMode: GameMode;
+  difficulty: DifficultyLevel;
   customServerUrl: string;
   firebaseDbUrl: string;
   highScore: number;

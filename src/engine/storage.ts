@@ -1,6 +1,7 @@
 import {
   ControlHand,
   ControlMode,
+  DifficultyLevel,
   HudCustomLayout,
   MatchResultSummary,
   MusicTrackPreference,
@@ -65,6 +66,7 @@ export const DEFAULT_PROFILE: PlayerProfile = {
   selectedSnakeId: 'swift-viper',
   selectedMapId: 'cyberpunk-city',
   preferredMode: 'offline',
+  difficulty: 'easy',
   customServerUrl: DEFAULT_PRODUCTION_SERVER_URL,
   firebaseDbUrl: '',
   controlMode: 'joystick',
@@ -214,6 +216,11 @@ export function loadProfile(): PlayerProfile {
         : 0.7;
 
     const validControlModes: ControlMode[] = ['arrow', 'classic', 'joystick'];
+    const validDiffs: DifficultyLevel[] = ['easy', 'medium', 'hard'];
+    const resolvedDifficulty: DifficultyLevel =
+      parsed.difficulty && validDiffs.includes(parsed.difficulty)
+        ? parsed.difficulty
+        : 'easy';
     const migrationFlag = window.localStorage.getItem('glowsnake_io_joystick_default_v2');
     let resolvedControlMode: ControlMode =
       parsed.controlMode && validControlModes.includes(parsed.controlMode)
@@ -237,6 +244,7 @@ export function loadProfile(): PlayerProfile {
       ...DEFAULT_PROFILE,
       ...parsed,
       controlMode: resolvedControlMode,
+      difficulty: resolvedDifficulty,
       musicTrack: resolvedTrack,
       musicVolume: resolvedVol,
       musicEnabled: resolvedTrack !== 'off' && resolvedVol > 0,

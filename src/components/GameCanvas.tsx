@@ -118,6 +118,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const localWorld = new SimulationWorld({
       mapId,
       mode: 'offline',
+      difficulty: profile.difficulty || 'easy',
     });
     const myPlayerId = `plr_${Math.random().toString(36).slice(2, 9)}`;
     const spawned = localWorld.spawnSnake({

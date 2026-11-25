@@ -21,6 +21,7 @@ import {
 import { admobService } from '@/services/admobService';
 import {
   ArenaPatternStyle,
+  DifficultyLevel,
   LanguageCode,
   MapId,
   MusicTrackPreference,
@@ -34,6 +35,7 @@ import {
   ChevronRight,
   Clapperboard,
   ExternalLink,
+  Flame,
   Gamepad2,
   Gift,
   Globe,
@@ -365,47 +367,133 @@ export const StartMenu: React.FC<StartMenuProps> = ({
         </div>
       </header>
 
-      {/* CENTER: Animated Slithering Snake, Title, Nickname & Play Button */}
-      <main className="relative z-10 my-auto mx-auto w-full max-w-[270px] sm:max-w-sm flex flex-col items-center text-center py-0.5 shrink-0">
+      {/* CENTER: Animated Slithering Snake, Title, Nickname, Difficulty Levels & Play Button */}
+      <main className="relative z-10 my-auto mx-auto w-full max-w-[330px] sm:max-w-lg flex flex-col items-center text-center py-0.5 shrink-0">
         <div className="mb-0.5">
-          <SnakePreviewCanvas snake={selectedSnake} width={150} height={42} />
+          <SnakePreviewCanvas snake={selectedSnake} width={145} height={38} />
         </div>
 
         <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white mb-1 sm:mb-2">
           GlowSnake.io
         </h1>
 
-        <form onSubmit={handlePlay} className="w-full space-y-1.5 sm:space-y-2">
-          {/* Nickname */}
-          <div>
-            <input
-              type="text"
-              maxLength={18}
-              value={profile.nickname}
-              onChange={(e) => {
-                onUpdateProfile({ nickname: e.target.value });
-                if (e.target.value.trim()) setNameError(false);
-              }}
-              placeholder={t.nicknamePlaceholder}
-              className={`w-full rounded-lg sm:rounded-xl bg-slate-900/90 border px-3 py-1.5 sm:py-2 text-center text-xs sm:text-sm font-medium text-white placeholder-slate-500 outline-none transition ${
-                nameError
-                  ? 'border-red-500'
-                  : 'border-white/15 focus:border-white/40'
+        <form onSubmit={handlePlay} className="w-full grid grid-cols-12 gap-2 items-stretch">
+          {/* Left Side: Nickname & Primary Play Button */}
+          <div className="col-span-6 flex flex-col justify-between gap-1.5 sm:gap-2">
+            <div>
+              <input
+                type="text"
+                maxLength={18}
+                value={profile.nickname}
+                onChange={(e) => {
+                  onUpdateProfile({ nickname: e.target.value });
+                  if (e.target.value.trim()) setNameError(false);
+                }}
+                placeholder={t.nicknamePlaceholder}
+                className={`w-full rounded-lg sm:rounded-xl bg-slate-900/90 border px-2.5 py-2 sm:py-2.5 text-center text-xs sm:text-sm font-medium text-white placeholder-slate-500 outline-none transition ${
+                  nameError
+                    ? 'border-red-500'
+                    : 'border-white/15 focus:border-white/40'
+                }`}
+              />
+              {nameError && (
+                <p className="mt-0.5 text-[10px] text-red-400">{t.enterNameWarning}</p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className={`w-full flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg sm:rounded-xl active:scale-[0.98] px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-extrabold tracking-wide text-slate-950 transition cursor-pointer shadow-lg ${
+                (profile.difficulty || 'easy') === 'hard'
+                  ? 'bg-gradient-to-r from-rose-500 via-amber-400 to-rose-500 hover:brightness-110 shadow-rose-500/30'
+                  : (profile.difficulty || 'easy') === 'medium'
+                  ? 'bg-gradient-to-r from-amber-400 to-yellow-300 hover:brightness-105 shadow-amber-500/25'
+                  : 'bg-emerald-500 hover:bg-emerald-400 shadow-emerald-500/25'
               }`}
-            />
-            {nameError && (
-              <p className="mt-0.5 text-[10px] text-red-400">{t.enterNameWarning}</p>
-            )}
+            >
+              <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-slate-950 shrink-0" />
+              <span>{t.play}</span>
+              <span className="rounded-md bg-slate-950/20 px-1.5 py-0.5 text-[10px] font-black tabular-nums">
+                {(profile.difficulty || 'easy') === 'hard'
+                  ? '2.0x'
+                  : (profile.difficulty || 'easy') === 'medium'
+                  ? '1.4x'
+                  : '1.0x'}
+              </span>
+            </button>
           </div>
 
-          {/* Play Button */}
-          <button
-            type="submit"
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-bold tracking-wide text-slate-950 transition cursor-pointer shadow-lg shadow-emerald-500/25"
-          >
-            <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-slate-950" />
-            <span>{t.play}</span>
-          </button>
+          {/* Right Side: Stacked Difficulty Modes (Top: Easy, Middle: Medium, Bottom: Hard) */}
+          <div className="col-span-6 flex flex-col gap-1 text-left">
+            {(
+              [
+                {
+                  id: 'easy' as DifficultyLevel,
+                  label: t.diffEasy,
+                  desc: t.diffEasyDesc,
+                  mult: '1.0x',
+                  icon: <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />,
+                  activeCls:
+                    'bg-emerald-500/20 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.28)]',
+                  badgeCls: 'bg-emerald-500/25 text-emerald-300 border-emerald-400/40',
+                },
+                {
+                  id: 'medium' as DifficultyLevel,
+                  label: t.diffMedium,
+                  desc: t.diffMediumDesc,
+                  mult: '1.4x',
+                  icon: <Zap className="h-3.5 w-3.5 text-amber-400 shrink-0" />,
+                  activeCls:
+                    'bg-amber-500/20 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.28)]',
+                  badgeCls: 'bg-amber-500/25 text-amber-300 border-amber-400/40',
+                },
+                {
+                  id: 'hard' as DifficultyLevel,
+                  label: t.diffHard,
+                  desc: t.diffHardDesc,
+                  mult: '2.0x',
+                  icon: <Flame className="h-3.5 w-3.5 text-rose-400 shrink-0" />,
+                  activeCls:
+                    'bg-rose-500/20 border-rose-400 shadow-[0_0_14px_rgba(244,63,94,0.32)]',
+                  badgeCls: 'bg-rose-500/25 text-rose-300 border-rose-400/40',
+                },
+              ] as const
+            ).map((lvl) => {
+              const active = (profile.difficulty || 'easy') === lvl.id;
+              return (
+                <button
+                  key={lvl.id}
+                  type="button"
+                  onClick={() => {
+                    soundEngine.playClick();
+                    onUpdateProfile({ difficulty: lvl.id });
+                  }}
+                  className={`w-full flex items-center justify-between gap-1.5 rounded-lg border px-2 py-1 sm:py-1.5 transition cursor-pointer ${
+                    active
+                      ? lvl.activeCls
+                      : 'bg-slate-900/85 border-white/10 hover:bg-slate-800/90 hover:border-white/25'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {lvl.icon}
+                    <div className="min-w-0">
+                      <div className="text-[11px] sm:text-xs font-extrabold text-white leading-tight truncate">
+                        {lvl.label}
+                      </div>
+                      <div className="text-[9px] text-slate-400 leading-tight truncate hidden sm:block">
+                        {lvl.desc}
+                      </div>
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] font-black border tabular-nums ${lvl.badgeCls}`}
+                  >
+                    {lvl.mult}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </form>
       </main>
 

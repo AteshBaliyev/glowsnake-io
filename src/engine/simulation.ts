@@ -7,6 +7,7 @@ import { getSnakeSpec, SNAKE_TYPES } from '@/data/snakes';
 import {
   ArenaMapSpec,
   BotSkillTier,
+  DifficultyLevel,
   GameMode,
   HazardZone,
   LeaderboardEntry,
@@ -74,6 +75,7 @@ function cellKey(cx: number, cy: number): number {
 export interface SimulationConfig {
   mapId: MapId;
   mode: GameMode;
+  difficulty?: DifficultyLevel;
   targetTotalPopulation?: number; // ~300 snakes in massive 3x arena
   serverInstanceIndex?: number;
 }
@@ -89,6 +91,7 @@ interface SegRef {
 export class SimulationWorld {
   public map: ArenaMapSpec;
   public mode: GameMode;
+  public difficulty: DifficultyLevel;
   public worldHalfSize: number;
   public serverInstanceIndex: number;
 
@@ -205,6 +208,7 @@ export class SimulationWorld {
   constructor(config: SimulationConfig) {
     this.map = getMapSpec(config.mapId);
     this.mode = config.mode;
+    this.difficulty = config.difficulty || 'easy';
     this.serverInstanceIndex = config.serverInstanceIndex ?? 1;
 
     if (config.mode === 'offline') {
@@ -381,13 +385,21 @@ export class SimulationWorld {
     let bestPoint = { x: 0, y: 0 };
     let bestScore = -Infinity;
 
-    // Minimum distance from human player to prevent unfair instant collisions
-    const minPlayerDistSq = isBot && humanPlayer ? 300 * 300 : 0;
-    const minHeadDistSq = 320 * 320;
-    const minSegDistSq = 200 * 200;
+    // Strictly prevent bots from abruptly spawning right next to the player on any difficulty
+    const safeRadius =
+      this.difficulty === 'easy'
+        ? 1120
+        : this.difficulty === 'medium'
+        ? 1000
+        : 920;
+    const minPlayerDistSq = isBot && humanPlayer ? safeRadius * safeRadius : 0;
+    const minHeadDistSq = 340 * 340;
+    const minSegDistSq = 210 * 210;
 
-    // Excitement Ring: 50% of bot spawns happen in the active sector around player (420px .. 960px)
-    const targetPlayerSector = isBot && humanPlayer && Math.random() < 0.52;
+    // In Medium/Hard, bias some spawns into an off-screen outer ring (980..1850px) so bots travel in naturally
+    const sectorChance =
+      this.difficulty === 'hard' ? 0.42 : this.difficulty === 'medium' ? 0.25 : 0;
+    const targetPlayerSector = isBot && humanPlayer && Math.random() < sectorChance;
 
     for (let attempt = 0; attempt < 32; attempt++) {
       let x: number;
@@ -395,7 +407,7 @@ export class SimulationWorld {
 
       if (targetPlayerSector && humanPlayer) {
         const ang = Math.random() * Math.PI * 2;
-        const dist = 420 + Math.random() * 540;
+        const dist = 980 + Math.random() * 880;
         x = Math.max(-bound, Math.min(bound, humanPlayer.x + Math.cos(ang) * dist));
         y = Math.max(-bound, Math.min(bound, humanPlayer.y + Math.sin(ang) * dist));
       } else {
@@ -1995,7 +2007,14 @@ export class SimulationWorld {
 
     const abilityMult = now < s.doubleScoreUntil ? 2 : 1;
     const snakeMult = s.isBot ? 1 + (spec.scoreMultiplier - 1) * 0.25 : spec.scoreMultiplier;
-    const totalMult = abilityMult * snakeMult;
+    const diffMult = !s.isBot
+      ? this.difficulty === 'hard'
+        ? 2.0
+        : this.difficulty === 'medium'
+        ? 1.4
+        : 1.0
+      : 1.0;
+    const totalMult = abilityMult * snakeMult * diffMult;
 
     const nearby = this.getNearbyOrbs(s.x, s.y, 1);
     for (let i = 0; i < nearby.length; i++) {
@@ -2321,14 +2340,20 @@ export class SimulationWorld {
       return;
     }
 
+    const diffReactionMult =
+      this.difficulty === 'hard'
+        ? 0.78
+        : this.difficulty === 'medium'
+        ? 0.88
+        : 1.05;
     const reactionDelay =
-      tier === 'weak'
+      (tier === 'weak'
         ? 155 + Math.random() * 75
         : tier === 'normal'
         ? 90 + Math.random() * 45
         : tier === 'strong'
         ? 55 + Math.random() * 30
-        : 45 + Math.random() * 25;
+        : 45 + Math.random() * 25) * diffReactionMult;
     this.botNextDecisionAt.set(bot.id, now + reactionDelay);
 
     const lookAhead =
@@ -2351,7 +2376,7 @@ export class SimulationWorld {
     let huntTargetScore = -Infinity;
     let closestEnemyHeadDist = Infinity;
 
-    // Direct Player Awareness: Scan human player position so bots actively seek and interact with the player!
+    // Direct Player Awareness scales with difficulty (Easy: none, Medium: 740px, Hard: 900px)
     const humanPlayer = this.getHumanPlayer();
     let distToHuman = Infinity;
     if (humanPlayer && humanPlayer.alive && now >= humanPlayer.stealthUntil) {
@@ -2359,9 +2384,15 @@ export class SimulationWorld {
       if (distToHuman < closestEnemyHeadDist) {
         closestEnemyHeadDist = distToHuman;
       }
-      // If Strong or Titan hunter, actively target human player from a larger distance (up to 850px)!
-      if ((tier === 'strong' || tier === 'titan') && distToHuman < 850 && bot.score >= 35) {
-        const scoreVal = (950 - distToHuman) + 260;
+      const playerHuntRange =
+        this.difficulty === 'hard' ? 900 : this.difficulty === 'medium' ? 740 : 0;
+      if (
+        playerHuntRange > 0 &&
+        (tier === 'strong' || tier === 'titan') &&
+        distToHuman < playerHuntRange &&
+        bot.score >= 35
+      ) {
+        const scoreVal = (playerHuntRange + 100 - distToHuman) + (this.difficulty === 'hard' ? 260 : 120);
         if (scoreVal > huntTargetScore) {
           huntTargetScore = scoreVal;
           huntTarget = humanPlayer;
@@ -2381,11 +2412,11 @@ export class SimulationWorld {
         closestEnemyHeadDist = d;
       }
 
-      // Strong & Titan hunters actively target players and nearby snakes to cut them off!
-      if ((tier === 'strong' || tier === 'titan') && d < 660 && bot.score >= 40) {
-        // Prefer human player or high-value targets within striking range
-        const humanBonus = !other.isBot ? 180 : 0;
-        const scoreVal = (700 - d) + humanBonus + Math.min(160, other.score * 0.08);
+      // Strong & Titan hunters actively target nearby snakes to cut them off!
+      const huntRange = this.difficulty === 'easy' ? 600 : this.difficulty === 'medium' ? 650 : 700;
+      if ((tier === 'strong' || tier === 'titan') && d < huntRange && bot.score >= 40) {
+        const humanBonus = !other.isBot && this.difficulty !== 'easy' ? (this.difficulty === 'hard' ? 200 : 90) : 0;
+        const scoreVal = (huntRange + 40 - d) + humanBonus + Math.min(160, other.score * 0.08);
         if (scoreVal > huntTargetScore) {
           huntTargetScore = scoreVal;
           huntTarget = other;
@@ -2452,18 +2483,40 @@ export class SimulationWorld {
           closestEnemyHeadDist < 500 &&
           Math.random() < (tier === 'titan' ? 0.78 : 0.62);
       }
-    } else if (humanPlayer && distToHuman < 1200 && distToHuman > 240) {
-      // Direct Engagement: Bots actively gravitate toward player to make the match exciting & intense!
+    } else if (
+      this.difficulty === 'hard' &&
+      humanPlayer &&
+      distToHuman < 1200 &&
+      distToHuman > 240
+    ) {
+      // Hard Mode: Bots actively gravitate toward player to make the match intense!
       const angleToPlayer = Math.atan2(humanPlayer.y - bot.y, humanPlayer.x - bot.x);
       const wander = (Math.random() - 0.5) * (tier === 'weak' ? 0.45 : 0.25);
       desiredAngle = angleToPlayer + wander;
       wantsBoost = bot.score >= 10 && distToHuman < 820 && Math.random() < 0.60;
+    } else if (
+      this.difficulty === 'medium' &&
+      humanPlayer &&
+      distToHuman < 1600 &&
+      distToHuman > 280 &&
+      Math.random() < 0.42
+    ) {
+      // Medium Mode: Moderate attraction toward player sector
+      const angleToPlayer = Math.atan2(humanPlayer.y - bot.y, humanPlayer.x - bot.x);
+      const wander = (Math.random() - 0.5) * 0.55;
+      desiredAngle = angleToPlayer + wander;
+      wantsBoost = bot.score >= 14 && distToHuman < 750 && Math.random() < 0.38;
     } else if (bestLootOrb && bestLootOrb.value >= 6) {
       // High-value shiny food pile in vicinity
       desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
       wantsBoost = bot.score >= 12 && Math.random() < 0.50;
-    } else if (humanPlayer && distToHuman < 3800 && distToHuman >= 1200) {
-      // Broad Sector Migration: Bots naturally navigate toward the player's zone across the arena
+    } else if (
+      this.difficulty === 'hard' &&
+      humanPlayer &&
+      distToHuman < 3800 &&
+      distToHuman >= 1200
+    ) {
+      // Hard Mode Broad Sector Migration: Bots naturally navigate toward the player's zone
       const angleToPlayer = Math.atan2(humanPlayer.y - bot.y, humanPlayer.x - bot.x);
       const wander = (Math.random() - 0.5) * 0.55;
       desiredAngle = angleToPlayer + wander;
@@ -2472,8 +2525,8 @@ export class SimulationWorld {
       desiredAngle = Math.atan2(bestLootOrb.y - bot.y, bestLootOrb.x - bot.x);
       wantsBoost = false;
     } else {
-      // Steer back toward player or center if drifting far
-      if (humanPlayer && Math.random() < 0.55) {
+      // Steer back toward player (Hard only) or central arena if drifting far
+      if (this.difficulty === 'hard' && humanPlayer && Math.random() < 0.55) {
         desiredAngle = Math.atan2(humanPlayer.y - bot.y, humanPlayer.x - bot.x) + (Math.random() - 0.5) * 0.4;
       } else {
         const distFromCenter = Math.hypot(bot.x, bot.y);
