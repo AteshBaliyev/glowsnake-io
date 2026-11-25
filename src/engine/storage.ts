@@ -64,7 +64,7 @@ export const DEFAULT_PROFILE: PlayerProfile = {
   nickname: '',
   language: 'en',
   selectedSnakeId: 'swift-viper',
-  selectedMapId: 'cyberpunk-city',
+  selectedMapId: 'royal-violet',
   preferredMode: 'offline',
   difficulty: 'easy',
   customServerUrl: DEFAULT_PRODUCTION_SERVER_URL,
@@ -240,9 +240,23 @@ export function loadProfile(): PlayerProfile {
       }
     }
 
+    const themeMigrationFlag = window.localStorage.getItem('glowsnake_io_synthwave_default_v1');
+    let resolvedMapId = parsed.selectedMapId || 'royal-violet';
+    if (!themeMigrationFlag) {
+      if (!parsed.selectedMapId || parsed.selectedMapId === 'cyberpunk-city') {
+        resolvedMapId = 'royal-violet';
+      }
+      try {
+        window.localStorage.setItem('glowsnake_io_synthwave_default_v1', 'true');
+      } catch {
+        // ignore
+      }
+    }
+
     return {
       ...DEFAULT_PROFILE,
       ...parsed,
+      selectedMapId: resolvedMapId,
       controlMode: resolvedControlMode,
       difficulty: resolvedDifficulty,
       musicTrack: resolvedTrack,

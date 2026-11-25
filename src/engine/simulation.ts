@@ -132,6 +132,15 @@ export class SimulationWorld {
   private botNextDecisionAt: Map<string, number> = new Map();
   private botGreedMode: Map<string, boolean> = new Map();
   private humanPlayerId: string | null = null;
+  // Zero-GC reusable scratch arrays & O(1) low-loot cleanup queue
+  private scratchOrbs: Orb[] = [];
+  private scratchSegs: SegRef[] = [];
+  private botSegsScratch: SegRef[] = [];
+  private snapshotSnakesCache: SnakeEntity[] = [];
+  private snapshotOrbsCache: Orb[] = [];
+  private snapshotHazardsCache: HazardZone[] = [];
+  private lowLootQueue: string[] = [];
+  private lowLootHead = 0;
 
   private acquireSegRef(
     snake: SnakeEntity,
@@ -212,21 +221,20 @@ export class SimulationWorld {
     this.serverInstanceIndex = config.serverInstanceIndex ?? 1;
 
     if (config.mode === 'offline') {
-      this.worldHalfSize = this.map.offlineHalfSize;
-      // ~300 active snakes across the giant arena
+      this.worldHalfSize = Math.round(this.map.offlineHalfSize * 0.72);
+      // ~200 active snakes with dense food & zero GC pauses on mobile WebViews
       this.targetPopulation =
-        config.targetTotalPopulation ?? Math.floor(290 + Math.random() * 16);
-      this.maxAmbientOrbs = 48000; // 4x Increased Food Orbs everywhere across the map
-      this.maxCores = 850;
-      this.maxLootOrbs = 25000; // Generous capacity so death orbs never vanish
+        config.targetTotalPopulation ?? Math.floor(194 + Math.random() * 14);
+      this.maxAmbientOrbs = 20000;
+      this.maxCores = 500;
+      this.maxLootOrbs = 12000;
     } else {
-      this.worldHalfSize = this.map.onlineHalfSize;
-      // ~300 active global snakes in Online arena
+      this.worldHalfSize = Math.round(this.map.onlineHalfSize * 0.72);
       this.targetPopulation =
-        config.targetTotalPopulation ?? Math.floor(288 + Math.random() * 18);
-      this.maxAmbientOrbs = 48000;
-      this.maxCores = 850;
-      this.maxLootOrbs = 25000;
+        config.targetTotalPopulation ?? Math.floor(194 + Math.random() * 14);
+      this.maxAmbientOrbs = 20000;
+      this.maxCores = 500;
+      this.maxLootOrbs = 12000;
     }
 
     this.seedInitialOrbs();
@@ -245,7 +253,12 @@ export class SimulationWorld {
     this.orbs.set(orb.id, orb);
     if (orb.kind === 'ambient') this.ambientOrbCount++;
     else if (orb.kind === 'core') this.coreOrbCount++;
-    else if (orb.kind === 'loot') this.lootOrbCount++;
+    else if (orb.kind === 'loot') {
+      this.lootOrbCount++;
+      if (orb.value <= 2) {
+        this.lowLootQueue.push(orb.id);
+      }
+    }
 
     const cx = Math.floor(orb.x / CELL_SIZE);
     const cy = Math.floor(orb.y / CELL_SIZE);
@@ -343,7 +356,8 @@ export class SimulationWorld {
   private getNearbyOrbs(x: number, y: number, cellSpan = 1): Orb[] {
     const cx = Math.floor(x / CELL_SIZE);
     const cy = Math.floor(y / CELL_SIZE);
-    const result: Orb[] = [];
+    const result = this.scratchOrbs;
+    result.length = 0;
     for (let dx = -cellSpan; dx <= cellSpan; dx++) {
       for (let dy = -cellSpan; dy <= cellSpan; dy++) {
         const b = this.orbGrid.get(cellKey(cx + dx, cy + dy));
@@ -358,7 +372,24 @@ export class SimulationWorld {
   private getNearbySegments(x: number, y: number, cellSpan = 1): SegRef[] {
     const cx = Math.floor(x / CELL_SIZE);
     const cy = Math.floor(y / CELL_SIZE);
-    const result: SegRef[] = [];
+    const result = this.scratchSegs;
+    result.length = 0;
+    for (let dx = -cellSpan; dx <= cellSpan; dx++) {
+      for (let dy = -cellSpan; dy <= cellSpan; dy++) {
+        const b = this.segGrid.get(cellKey(cx + dx, cy + dy));
+        if (b && b.length > 0) {
+          for (let i = 0; i < b.length; i++) result.push(b[i]);
+        }
+      }
+    }
+    return result;
+  }
+
+  private getBotSegments(x: number, y: number, cellSpan = 1): SegRef[] {
+    const cx = Math.floor(x / CELL_SIZE);
+    const cy = Math.floor(y / CELL_SIZE);
+    const result = this.botSegsScratch;
+    result.length = 0;
     for (let dx = -cellSpan; dx <= cellSpan; dx++) {
       for (let dy = -cellSpan; dy <= cellSpan; dy++) {
         const b = this.segGrid.get(cellKey(cx + dx, cy + dy));
@@ -727,9 +758,9 @@ export class SimulationWorld {
     const pool = tier === 'strong' ? SNAKE_TYPES.slice(25, 65) : SNAKE_TYPES.slice(0, 35);
     const pickedSnake = pool[Math.floor(Math.random() * pool.length)] || SNAKE_TYPES[0];
 
-    // Tactical perimeter around player: 980px to 1320px (just off the visible screen edge)
+    // Safely off-screen perimeter around player: 1060px to 1450px (never abrupt pop-in!)
     const angle = Math.random() * Math.PI * 2;
-    const dist = 980 + Math.random() * 340;
+    const dist = 1060 + Math.random() * 390;
     const bound = this.worldHalfSize - 400;
     const px = Math.max(-bound, Math.min(bound, human.x + Math.cos(angle) * dist));
     const py = Math.max(-bound, Math.min(bound, human.y + Math.sin(angle) * dist));
@@ -742,12 +773,14 @@ export class SimulationWorld {
     const segCount = this.computeSegmentCount(initScore);
     const spacing = radius * 0.72;
 
-    const segments = [];
+    const segments: Point2D[] = [];
     for (let i = 0; i < segCount; i++) {
-      segments.push({
-        x: px - Math.cos(toPlayerAngle) * spacing * i,
-        y: py - Math.sin(toPlayerAngle) * spacing * i,
-      });
+      segments.push(
+        this.acquireSegment(
+          px - Math.cos(toPlayerAngle) * spacing * i,
+          py - Math.sin(toPlayerAngle) * spacing * i
+        )
+      );
     }
 
     const now = Date.now();
@@ -985,14 +1018,19 @@ export class SimulationWorld {
 
   private trimExcessLootOrbs(): void {
     if (this.lootOrbCount <= this.maxLootOrbs) return;
-    let toRemove = this.lootOrbCount - this.maxLootOrbs + 200;
-    // Only trim low-value boost trail pellets (value <= 2), NEVER death drop orbs or stars!
-    for (const [id, o] of this.orbs.entries()) {
-      if (o.kind === 'loot' && o.value <= 2) {
+    let toRemove = this.lootOrbCount - this.maxLootOrbs + 160;
+    // O(1) amortized FIFO trim of low-value boost trail pellets only (NEVER scans all orbs!)
+    while (toRemove > 0 && this.lowLootHead < this.lowLootQueue.length) {
+      const id = this.lowLootQueue[this.lowLootHead++];
+      const o = this.orbs.get(id);
+      if (o && o.kind === 'loot' && o.value <= 2) {
         this.unregisterOrb(id);
         toRemove--;
-        if (toRemove <= 0) break;
       }
+    }
+    if (this.lowLootHead > 2000) {
+      this.lowLootQueue = this.lowLootQueue.slice(this.lowLootHead);
+      this.lowLootHead = 0;
     }
   }
 
@@ -1397,6 +1435,19 @@ export class SimulationWorld {
       this.maintainOrbs();
     }
 
+    this.stepCounter = (this.stepCounter + 1) % 60;
+
+    // Detect player position upfront to scale off-screen work seamlessly
+    let playerX = 0;
+    let playerY = 0;
+    let hasPlayer = false;
+    const human = this.getHumanPlayer();
+    if (human) {
+      playerX = human.x;
+      playerY = human.y;
+      hasPlayer = true;
+    }
+
     for (const s of this.snakes.values()) {
       if (!s.alive) continue;
       if (s.isDecoy && now - s.spawnedAt > 4000) {
@@ -1414,34 +1465,25 @@ export class SimulationWorld {
     this.updateContinuousAbilities(dt, now);
     this.updateHazards(dt, now);
 
-    this.stepCounter = (this.stepCounter + 1) % 60;
-
-    // Detect player position to optimize faraway bot computation
-    let playerX = 0;
-    let playerY = 0;
-    let hasPlayer = false;
-    for (const s of this.snakes.values()) {
-      if (!s.isBot && s.alive) {
-        playerX = s.x;
-        playerY = s.y;
-        hasPlayer = true;
-        break;
-      }
-    }
-
     let bIdx = 0;
+    const nearSimSq = 2800 * 2800;
     for (const s of this.snakes.values()) {
       if (!s.alive) continue;
-      this.moveSnake(s, dt, now);
+      let isNear = true;
+      if (s.isBot && hasPlayer) {
+        const dx = s.x - playerX;
+        const dy = s.y - playerY;
+        isNear = dx * dx + dy * dy < nearSimSq;
+      }
+      this.moveSnake(s, dt, now, isNear);
 
       // Player and snakes near the screen always collect orbs every frame.
       // Distant bots off-screen interleave collection to eliminate lag and GC pressure.
-      if (!s.isBot) {
+      if (!s.isBot || isNear) {
         this.collectOrbsForSnake(s, dt, now);
       } else {
         bIdx++;
-        const isNear = hasPlayer && Math.hypot(s.x - playerX, s.y - playerY) < 2400;
-        if (isNear || (this.stepCounter + bIdx) % 4 === 0) {
+        if ((this.stepCounter + bIdx) % 4 === 0) {
           this.collectOrbsForSnake(s, dt, now);
         }
       }
@@ -1449,9 +1491,9 @@ export class SimulationWorld {
 
     // Rebuild spatial grid strictly AFTER movement so collisions and queries use exact current coordinates!
     this.rebuildSegmentGrid();
-    this.resolveCollisions(now);
+    this.resolveCollisions(now, hasPlayer, playerX, playerY);
 
-    if (now - this.lastRankSortAt > 220) {
+    if (now - this.lastRankSortAt > 240) {
       this.lastRankSortAt = now;
       this.recomputeRanks(now);
     }
@@ -1518,11 +1560,11 @@ export class SimulationWorld {
       }
     }
 
-    // Gently fluctuate around ~300 active snakes (286 .. 308)
+    // Gently fluctuate around ~200 active snakes (190 .. 208) for peak mobile FPS
     if (!initialSeed && Math.random() < 0.12) {
       this.targetPopulation = Math.max(
-        286,
-        Math.min(308, this.targetPopulation + (Math.random() < 0.5 ? -2 : 2))
+        190,
+        Math.min(208, this.targetPopulation + (Math.random() < 0.5 ? -2 : 2))
       );
     }
 
@@ -1538,7 +1580,7 @@ export class SimulationWorld {
     } else if (nonDecoyCount < this.targetPopulation) {
       const toSpawn = initialSeed
         ? this.targetPopulation - nonDecoyCount
-        : Math.min(14, this.targetPopulation - nonDecoyCount);
+        : Math.min(8, this.targetPopulation - nonDecoyCount);
       for (let i = 0; i < toSpawn; i++) {
         if (initialSeed) {
           this.spawnVariedBot(true, usedNames, i);
@@ -1550,7 +1592,7 @@ export class SimulationWorld {
           } else if (top20Count < 15) {
             bracket = 'top20';
             top20Count++;
-          } else if (veteranCount < 38) {
+          } else if (veteranCount < 30) {
             bracket = 'veteran';
             veteranCount++;
           }
@@ -1559,20 +1601,24 @@ export class SimulationWorld {
       }
     }
 
-    // Ensure player has at least 1-2 active bot snakes in nearby perimeter (within 1400px)
+    // In Medium/Hard only, keep bots active in broader off-screen perimeter (never pop-in near player!)
     const human = this.getHumanPlayer();
-    if (human && !initialSeed) {
+    if (human && !initialSeed && this.difficulty !== 'easy') {
       let botsNearby = 0;
-      let closestBotDist = Infinity;
+      let closestBotDistSq = Infinity;
+      const checkR = this.difficulty === 'hard' ? 1500 : 1750;
+      const checkRSq = checkR * checkR;
       for (const s of this.snakes.values()) {
         if (s.alive && s.isBot && !s.isDecoy) {
-          const d = Math.hypot(s.x - human.x, s.y - human.y);
-          if (d < 1400) botsNearby++;
-          if (d < closestBotDist) closestBotDist = d;
+          const dx = s.x - human.x;
+          const dy = s.y - human.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < checkRSq) botsNearby++;
+          if (d2 < closestBotDistSq) closestBotDistSq = d2;
         }
       }
 
-      if (botsNearby < 1 || closestBotDist > 1400) {
+      if (botsNearby < 1 || closestBotDistSq > checkRSq) {
         this.spawnBotNearPlayer(human, usedNames);
       }
     }
@@ -1580,11 +1626,12 @@ export class SimulationWorld {
   }
 
   private maintainOrbs(): void {
-    const deficit = Math.min(3000, this.maxAmbientOrbs - this.ambientOrbCount);
+    // Trickle replenish smoothly (max 120 orbs/sec) to eliminate 1-second frame spikes
+    const deficit = Math.min(120, this.maxAmbientOrbs - this.ambientOrbCount);
     for (let i = 0; i < deficit; i++) {
       this.spawnAmbientOrb();
     }
-    const coreDeficit = Math.min(60, this.maxCores - this.coreOrbCount);
+    const coreDeficit = Math.min(14, this.maxCores - this.coreOrbCount);
     for (let i = 0; i < coreDeficit; i++) {
       this.spawnCoreOrb();
     }
@@ -1857,7 +1904,7 @@ export class SimulationWorld {
     }
   }
 
-  private moveSnake(s: SnakeEntity, dt: number, now: number): void {
+  private moveSnake(s: SnakeEntity, dt: number, now: number, isNear = true): void {
     const spec = getSnakeSpec(s.snakeTypeId);
     s.radius = this.computeRadius(s.score);
 
@@ -1938,9 +1985,8 @@ export class SimulationWorld {
 
     const spacing = s.radius * 0.72;
 
-    // High-speed physics sub-stepping: at boost / high speeds (>260 px/s), run 2 sub-steps
-    // to keep segment spacing and trailing constraints completely fluid and eliminate discrete segment jumping!
-    const subSteps = s.isBoosting || speed > 260 ? 2 : 1;
+    // High-speed physics sub-stepping for player & nearby boosting snakes; 1 step for distant bots
+    const subSteps = (!s.isBot || isNear) && (s.isBoosting || speed > 310) ? 2 : 1;
     const subDt = dt / subSteps;
     const stepSpeed = speed;
 
@@ -1958,17 +2004,17 @@ export class SimulationWorld {
         s.segments[0].y = s.y;
       }
 
-      // Fluid distance constraint: EVERY segment is strictly locked at 'spacing' distance from prev!
-      // Eliminates freezing, snapping, stuttering, and CPU unshift lag!
+      // Fast Math.sqrt distance constraint (8x faster than V8 Math.hypot varargs!)
       for (let i = 1; i < s.segments.length; i++) {
         const prev = s.segments[i - 1];
         const curr = s.segments[i];
         const dx = curr.x - prev.x;
         const dy = curr.y - prev.y;
-        const d = Math.hypot(dx, dy);
-        if (d > 0.0001) {
-          curr.x = prev.x + (dx / d) * spacing;
-          curr.y = prev.y + (dy / d) * spacing;
+        const dSq = dx * dx + dy * dy;
+        if (dSq > 0.00001) {
+          const invD = spacing / Math.sqrt(dSq);
+          curr.x = prev.x + dx * invD;
+          curr.y = prev.y + dy * invD;
         }
       }
     }
@@ -1981,10 +2027,13 @@ export class SimulationWorld {
       let dirY = -Math.sin(s.angle);
       if (s.segments.length >= 2) {
         const prev = s.segments[s.segments.length - 2];
-        const td = Math.hypot(last.x - prev.x, last.y - prev.y);
-        if (td > 0.001) {
-          dirX = (last.x - prev.x) / td;
-          dirY = (last.y - prev.y) / td;
+        const tdx = last.x - prev.x;
+        const tdy = last.y - prev.y;
+        const tdSq = tdx * tdx + tdy * tdy;
+        if (tdSq > 0.00001) {
+          const invTd = 1 / Math.sqrt(tdSq);
+          dirX = tdx * invTd;
+          dirY = tdy * invTd;
         }
       }
       s.segments.push(this.acquireSegment(last.x + dirX * spacing, last.y + dirY * spacing));
@@ -2055,7 +2104,12 @@ export class SimulationWorld {
     }
   }
 
-  private resolveCollisions(now: number): void {
+  private resolveCollisions(
+    now: number,
+    hasPlayer = false,
+    playerX = 0,
+    playerY = 0
+  ): void {
     const half = this.worldHalfSize;
     const toKillMap = new Map<
       string,
@@ -2077,6 +2131,8 @@ export class SimulationWorld {
     }
 
     const contactsByAttacker = new Map<string, Map<string, PairContact>>();
+    const nearCheckSq = 3000 * 3000;
+    let farSeq = 0;
 
     for (const a of this.snakes.values()) {
       if (!a.alive) continue;
@@ -2090,6 +2146,16 @@ export class SimulationWorld {
       }
 
       if (now < a.phaseUntil) continue;
+
+      // Full 60Hz collision near player; 30Hz alternating collision for far off-screen bots
+      if (a.isBot && hasPlayer) {
+        const adx = a.x - playerX;
+        const ady = a.y - playerY;
+        if (adx * adx + ady * ady > nearCheckSq) {
+          farSeq++;
+          if (((farSeq + this.stepCounter) & 1) !== 0) continue;
+        }
+      }
 
       // Giant snakes can exceed 40px radius, so span=1 (440px cells) covers all contacts cleanly
       const nearSegs = this.getNearbySegments(a.x, a.y, 1);
@@ -2368,7 +2434,7 @@ export class SimulationWorld {
     const safetyPad =
       tier === 'weak' ? 6 : tier === 'normal' ? 18 : tier === 'strong' ? 28 : 34;
 
-    const nearSegs = this.getNearbySegments(bot.x, bot.y, 1);
+    const nearSegs = this.getBotSegments(bot.x, bot.y, 1);
     const nearOrbs = this.getNearbyOrbs(bot.x, bot.y, 1);
 
     // 1. Scan nearby rival heads for hunting or threat awareness
@@ -2657,7 +2723,8 @@ export class SimulationWorld {
       ? this.pendingEvents.splice(0, this.pendingEvents.length)
       : [...this.pendingEvents];
 
-    const visibleSnakes: SnakeEntity[] = [];
+    const visibleSnakes = this.snapshotSnakesCache;
+    visibleSnakes.length = 0;
 
     for (const s of this.snakes.values()) {
       if (!s.alive) continue;
@@ -2674,11 +2741,11 @@ export class SimulationWorld {
       }
     }
 
-    let visibleOrbs: Orb[];
+    const visibleOrbs = this.snapshotOrbsCache;
+    visibleOrbs.length = 0;
     if (!viewport) {
-      visibleOrbs = Array.from(this.orbs.values());
+      for (const o of this.orbs.values()) visibleOrbs.push(o);
     } else {
-      visibleOrbs = [];
       const minCx = Math.floor((viewport.x - viewport.halfW) / CELL_SIZE);
       const maxCx = Math.floor((viewport.x + viewport.halfW) / CELL_SIZE);
       const minCy = Math.floor((viewport.y - viewport.halfH) / CELL_SIZE);
@@ -2700,6 +2767,10 @@ export class SimulationWorld {
       }
     }
 
+    const visibleHazards = this.snapshotHazardsCache;
+    visibleHazards.length = 0;
+    for (const hz of this.hazards.values()) visibleHazards.push(hz);
+
     return {
       now,
       mapId: this.map.id,
@@ -2708,7 +2779,7 @@ export class SimulationWorld {
       serverInstanceIndex: this.serverInstanceIndex,
       snakes: visibleSnakes,
       orbs: visibleOrbs,
-      hazards: Array.from(this.hazards.values()),
+      hazards: visibleHazards,
       leaderboard: this.cachedLeaderboard,
       ranksById: this.cachedRanks,
       minimapDots: this.cachedMinimapDots,

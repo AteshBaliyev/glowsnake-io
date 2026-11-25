@@ -23,6 +23,15 @@ interface Particle {
   decay: number;
 }
 
+const OMEGA_HSL_TABLE: string[] = Array.from(
+  { length: 360 },
+  (_, h) => `hsl(${h}, 88%, 56%)`
+);
+const AURORA_HSL_TABLE: string[] = Array.from(
+  { length: 360 },
+  (_, h) => `hsl(${h}, 74%, 52%)`
+);
+
 export interface RenderOptions {
   showPlayerNames?: boolean;
   fadeMyName?: boolean;
@@ -83,14 +92,14 @@ export function drawSnakeSegments(
     const taper = t > 0.85 ? 1 - (t - 0.85) * 2.5 : 1;
     const segR = Math.max(4, radius * taper);
 
-    // Base fill by rarity style
+    // Base fill by rarity style (zero string allocation via precomputed HSL tables!)
     let fill = i % 2 === 0 ? spec.primaryColor : spec.secondaryColor;
     if (isOmega100) {
-      const hue = (timeMs * 0.08 + i * 14) % 360;
-      fill = i % 2 === 0 ? `hsl(${hue}, 88%, 56%)` : '#09090b';
+      const hue = Math.floor(timeMs * 0.08 + i * 14) % 360;
+      fill = i % 2 === 0 ? OMEGA_HSL_TABLE[hue < 0 ? hue + 360 : hue] : '#09090b';
     } else if (rarity === 'mythic' && spec.id === 'aurora-serpent') {
-      const hue = (165 + Math.sin(timeMs * 0.003 + i * 0.25) * 55 + 360) % 360;
-      fill = i % 2 === 0 ? `hsl(${hue}, 74%, 52%)` : spec.secondaryColor;
+      const hue = Math.floor(165 + Math.sin(timeMs * 0.003 + i * 0.25) * 55 + 360) % 360;
+      fill = i % 2 === 0 ? AURORA_HSL_TABLE[hue < 0 ? hue + 360 : hue] : spec.secondaryColor;
     } else if (rarity === 'divine') {
       fill =
         i % 3 === 0
@@ -105,7 +114,7 @@ export function drawSnakeSegments(
     ctx.fillStyle = fill;
     ctx.fill();
 
-    // Escalating Premium Trim & Scale Ornamentation by Rarity (Zero blurry neon!)
+    // Escalating Premium Trim & Scale Ornamentation by Rarity (Zero save/restore thrashing!)
     if (i > 0 && i % 2 === 0) {
       if (rarity === 'rare') {
         ctx.beginPath();
@@ -141,13 +150,18 @@ export function drawSnakeSegments(
         ctx.lineWidth = 2.1;
         ctx.stroke();
 
-        ctx.save();
-        ctx.translate(seg.x, seg.y);
-        ctx.rotate(timeMs * 0.002 + i * 0.3);
-        const d = segR * 0.56;
+        const rot = timeMs * 0.002 + i * 0.3;
+        const hr = segR * 0.39;
+        const c = Math.cos(rot) * hr;
+        const s = Math.sin(rot) * hr;
+        ctx.beginPath();
+        ctx.moveTo(seg.x + c - s, seg.y + s + c);
+        ctx.lineTo(seg.x - c - s, seg.y - s + c);
+        ctx.lineTo(seg.x - c + s, seg.y - s - c);
+        ctx.lineTo(seg.x + c + s, seg.y + s - c);
+        ctx.closePath();
         ctx.fillStyle = spec.accentColor;
-        ctx.fillRect(-d / 2, -d / 2, d, d);
-        ctx.restore();
+        ctx.fill();
       } else if (rarity === 'divine') {
         // Imperial dual-ringed royal armor scale
         ctx.strokeStyle = spec.trimColor;
@@ -281,6 +295,10 @@ export class ArenaRenderer {
   private lookAheadOffsetY = 0;
   private initializedCam = false;
   private orbBatchMap: Map<string, Orb[]> = new Map();
+  private visibleSnakesCache: SnakeEntity[] = [];
+  private segBoundsCache = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  private cachedBgGrad: CanvasGradient | null = null;
+  private cachedBgKey = '';
 
   private acquireParticle(
     x: number,
@@ -453,17 +471,22 @@ export class ArenaRenderer {
     }
 
     if (renderOptions?.bestGraphics !== false && map.bgAccentColor) {
-      const grad = ctx.createRadialGradient(
-        width * 0.5,
-        height * 0.5,
-        Math.min(width, height) * 0.08,
-        width * 0.5,
-        height * 0.5,
-        Math.max(width, height) * 0.78
-      );
-      grad.addColorStop(0, map.bgAccentColor);
-      grad.addColorStop(1, map.bgColor);
-      ctx.fillStyle = grad;
+      const gradKey = `${width}x${height}_${map.id}`;
+      if (!this.cachedBgGrad || this.cachedBgKey !== gradKey) {
+        const grad = ctx.createRadialGradient(
+          width * 0.5,
+          height * 0.5,
+          Math.min(width, height) * 0.08,
+          width * 0.5,
+          height * 0.5,
+          Math.max(width, height) * 0.78
+        );
+        grad.addColorStop(0, map.bgAccentColor);
+        grad.addColorStop(1, map.bgColor);
+        this.cachedBgGrad = grad;
+        this.cachedBgKey = gradKey;
+      }
+      ctx.fillStyle = this.cachedBgGrad;
     } else {
       ctx.fillStyle = map.bgColor;
     }
@@ -476,12 +499,11 @@ export class ArenaRenderer {
 
     const viewHalfW = width / 2 / this.camZoom + 120;
     const viewHalfH = height / 2 / this.camZoom + 120;
-    const segBounds = {
-      minX: this.camX - viewHalfW - 45,
-      maxX: this.camX + viewHalfW + 45,
-      minY: this.camY - viewHalfH - 45,
-      maxY: this.camY + viewHalfH + 45,
-    };
+    const segBounds = this.segBoundsCache;
+    segBounds.minX = this.camX - viewHalfW - 45;
+    segBounds.maxX = this.camX + viewHalfW + 45;
+    segBounds.minY = this.camY - viewHalfH - 45;
+    segBounds.maxY = this.camY + viewHalfH + 45;
 
     this.drawWorldGrid(ctx, map, half, viewHalfW, viewHalfH);
     this.drawWorldBoundary(ctx, map, half);
@@ -495,8 +517,9 @@ export class ArenaRenderer {
       renderOptions?.wigglingFood !== false
     );
 
-    // Frustum-cull snakes so off-screen snakes cost 0 GPU time!
-    const visibleSnakes: SnakeEntity[] = [];
+    // Frustum-cull snakes using zero-GC reusable array
+    const visibleSnakes = this.visibleSnakesCache;
+    visibleSnakes.length = 0;
     for (let i = 0; i < snapshot.snakes.length; i++) {
       const s = snapshot.snakes[i];
       const maxSpan = s.segments.length * s.radius * 0.75 + 160;
@@ -768,6 +791,7 @@ export class ArenaRenderer {
   }
 
   private updateAndDrawParticles(ctx: CanvasRenderingContext2D, dt: number): void {
+    if (this.particles.length === 0) return;
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.x += p.vx * dt;
@@ -777,17 +801,20 @@ export class ArenaRenderer {
       p.alpha -= p.decay * dt;
       if (p.alpha <= 0.02) {
         this.releaseParticle(p);
-        this.particles.splice(i, 1);
+        const lastIdx = this.particles.length - 1;
+        if (i !== lastIdx) {
+          this.particles[i] = this.particles[lastIdx];
+        }
+        this.particles.pop();
         continue;
       }
-      ctx.save();
       ctx.globalAlpha = Math.max(0, p.alpha);
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
       ctx.fillStyle = p.color;
       ctx.fill();
-      ctx.restore();
     }
+    ctx.globalAlpha = 1;
   }
 
   private drawSquareMinimap(
@@ -825,20 +852,37 @@ export class ArenaRenderer {
     ctx.stroke();
 
     const dots = snapshot.minimapDots || [];
+    let myDot: { x: number; y: number } | null = null;
+    let leaderDot: { x: number; y: number } | null = null;
+
+    ctx.fillStyle = 'rgba(203, 213, 225, 0.45)';
     for (let i = 0; i < dots.length; i++) {
       const d = dots[i];
+      if (d.id === myId) {
+        myDot = d;
+        continue;
+      }
+      if (d.isLeader) {
+        leaderDot = d;
+        continue;
+      }
       const sx = x0 + (d.x + half) * scale;
       const sy = y0 + (d.y + half) * scale;
-      if (d.id === myId) {
-        ctx.fillStyle = '#22c55e';
-        ctx.fillRect(sx - 3, sy - 3, 6, 6);
-      } else if (d.isLeader) {
-        ctx.fillStyle = '#facc15';
-        ctx.fillRect(sx - 2.2, sy - 2.2, 4.4, 4.4);
-      } else {
-        ctx.fillStyle = 'rgba(203, 213, 225, 0.45)';
-        ctx.fillRect(sx - 1.2, sy - 1.2, 2.4, 2.4);
-      }
+      ctx.fillRect(sx - 1.2, sy - 1.2, 2.4, 2.4);
+    }
+
+    if (leaderDot) {
+      const sx = x0 + (leaderDot.x + half) * scale;
+      const sy = y0 + (leaderDot.y + half) * scale;
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(sx - 2.2, sy - 2.2, 4.4, 4.4);
+    }
+
+    if (myDot) {
+      const sx = x0 + (myDot.x + half) * scale;
+      const sy = y0 + (myDot.y + half) * scale;
+      ctx.fillStyle = '#22c55e';
+      ctx.fillRect(sx - 3, sy - 3, 6, 6);
     }
     ctx.restore();
   }

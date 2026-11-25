@@ -222,15 +222,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           activeCanvasTouchId = touch.identifier;
           updateSteerFromCoord(touch.clientX, touch.clientY);
         }
-      }
 
-      if (profileRef.current.doubleTapToBoost && e.touches.length === 1) {
-        const nowTap = performance.now();
-        if (nowTap - lastTapTimeRef.current < 280) {
-          doubleTapBoostRef.current = !doubleTapBoostRef.current;
-          if (doubleTapBoostRef.current) soundEngine.playBoostStart();
+        if (profileRef.current.doubleTapToBoost && e.touches.length === 1) {
+          const nowTap = performance.now();
+          if (nowTap - lastTapTimeRef.current < 280) {
+            doubleTapBoostRef.current = !doubleTapBoostRef.current;
+            if (doubleTapBoostRef.current) soundEngine.playBoostStart();
+          }
+          lastTapTimeRef.current = nowTap;
         }
-        lastTapTimeRef.current = nowTap;
       }
     };
 
@@ -503,7 +503,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       ctx.restore();
 
-      if (perfNow - lastHudUpdateMs >= 100) {
+      if (perfNow - lastHudUpdateMs >= 180) {
         lastHudUpdateMs = perfNow;
         const myEntity =
           snapshot.snakes.find((s) => s.id === myPlayerId) || null;
