@@ -100,7 +100,7 @@ interface VirtualCompetitor {
 
 const ACTIVE_BOT_MIN = 35;
 const ACTIVE_BOT_MAX = 40;
-const ACTIVE_BUBBLE_RADIUS = 2500;
+const ACTIVE_BUBBLE_RADIUS = 3300;
 const VIRTUAL_ROSTER_COUNT = 256;
 
 export class SimulationWorld {
@@ -424,7 +424,11 @@ export class SimulationWorld {
     return result;
   }
 
-  private findSafePoint(marginFromBorder = 420, isBot = false): { x: number; y: number } {
+  private findSafePoint(
+    marginFromBorder = 420,
+    isBot = false,
+    bodyLengthPx = 240
+  ): { x: number; y: number; angle: number } {
     const bound = this.worldHalfSize - marginFromBorder;
     let humanPlayer: SnakeEntity | undefined;
     if (isBot) {
@@ -436,56 +440,91 @@ export class SimulationWorld {
       }
     }
 
-    let bestPoint = { x: 0, y: 0 };
-    let bestScore = -Infinity;
+    // Strict off-screen safety: NEVER spawn inside viewport or inside/near any player body segment!
+    const safeHeadRadius = 1680;
+    const safeSegRadius = 920;
+    const minPlayerHeadSq = safeHeadRadius * safeHeadRadius;
+    const minPlayerSegSq = safeSegRadius * safeSegRadius;
+    const minHeadDistSq = 360 * 360;
+    const minSegDistSq = 240 * 240;
 
-    // Strictly prevent bots from abruptly spawning right next to the player on any difficulty!
-    const safeRadius =
-      this.difficulty === 'easy'
-        ? 1080
-        : this.difficulty === 'medium'
-        ? 980
-        : 940;
-    const minPlayerDistSq = isBot && humanPlayer ? safeRadius * safeRadius : 0;
-    const minHeadDistSq = 330 * 330;
-    const minSegDistSq = 200 * 200;
-
-    // Anchor coordinates for the 35-40 bot Active Bubble (around human player, or center before spawn)
     const centerX = humanPlayer ? humanPlayer.x : 0;
     const centerY = humanPlayer ? humanPlayer.y : 0;
 
-    for (let attempt = 0; attempt < 32; attempt++) {
+    const isClearOfHuman = (px: number, py: number): boolean => {
+      if (!humanPlayer) return true;
+      if (distSq(px, py, humanPlayer.x, humanPlayer.y) < minPlayerHeadSq) return false;
+      const segs = humanPlayer.segments;
+      for (let k = 0; k < segs.length; k += 3) {
+        if (distSq(px, py, segs[k].x, segs[k].y) < minPlayerSegSq) return false;
+      }
+      if (segs.length > 0) {
+        const last = segs[segs.length - 1];
+        if (distSq(px, py, last.x, last.y) < minPlayerSegSq) return false;
+      }
+      return true;
+    };
+
+    let bestFallback = {
+      x: (Math.random() * 2 - 1) * (bound * 0.6),
+      y: (Math.random() * 2 - 1) * (bound * 0.6),
+      angle: Math.random() * Math.PI * 2 - Math.PI,
+    };
+    let bestScore = -Infinity;
+
+    for (let attempt = 0; attempt < 48; attempt++) {
       let x: number;
       let y: number;
+      let ang = Math.random() * Math.PI * 2 - Math.PI;
 
       if (isBot) {
-        const ang = Math.random() * Math.PI * 2;
-        const minR = humanPlayer ? safeRadius + 70 : 320;
-        const maxR = ACTIVE_BUBBLE_RADIUS - 250;
+        const ringAngle = Math.random() * Math.PI * 2;
+        const minR = humanPlayer ? 1750 : 420;
+        const maxR = ACTIVE_BUBBLE_RADIUS - 260;
         const dist = minR + Math.random() * Math.max(200, maxR - minR);
-        x = Math.max(-bound, Math.min(bound, centerX + Math.cos(ang) * dist));
-        y = Math.max(-bound, Math.min(bound, centerY + Math.sin(ang) * dist));
+        let dx = Math.cos(ringAngle) * dist;
+        let dy = Math.sin(ringAngle) * dist;
+        // Reflect inward away from borders rather than clamping back onto the player!
+        if (Math.abs(centerX + dx) > bound) dx = -dx;
+        if (Math.abs(centerY + dy) > bound) dy = -dy;
+        x = Math.max(-bound, Math.min(bound, centerX + dx));
+        y = Math.max(-bound, Math.min(bound, centerY + dy));
+
+        if (humanPlayer) {
+          // Aim tangentially along the off-screen ring so tail NEVER cuts across the player!
+          const radialOut = Math.atan2(y - humanPlayer.y, x - humanPlayer.x);
+          const sign = Math.random() < 0.5 ? 1 : -1;
+          ang = normalizeAngle(radialOut + sign * (1.2 + Math.random() * 0.55));
+        }
       } else {
-        // Spawn human player in central 60% of arena with plenty of room
-        x = (Math.random() * 2 - 1) * (bound * 0.6);
-        y = (Math.random() * 2 - 1) * (bound * 0.6);
+        x = (Math.random() * 2 - 1) * (bound * 0.55);
+        y = (Math.random() * 2 - 1) * (bound * 0.55);
       }
 
       if (humanPlayer && isBot) {
-        const dPlayerSq = distSq(x, y, humanPlayer.x, humanPlayer.y);
-        if (dPlayerSq < minPlayerDistSq) {
-          if (dPlayerSq > bestScore) {
-            bestScore = dPlayerSq;
-            bestPoint = { x, y };
+        if (!isClearOfHuman(x, y)) {
+          const dHead = distSq(x, y, humanPlayer.x, humanPlayer.y);
+          if (dHead > bestScore) {
+            bestScore = dHead;
+            bestFallback = { x, y, angle: ang };
           }
           continue;
         }
+        // Also verify tail midpoint and tail tip don't touch player!
+        if (bodyLengthPx > 80) {
+          const midX = x - Math.cos(ang) * (bodyLengthPx * 0.5);
+          const midY = y - Math.sin(ang) * (bodyLengthPx * 0.5);
+          const endX = x - Math.cos(ang) * bodyLengthPx;
+          const endY = y - Math.sin(ang) * bodyLengthPx;
+          if (!isClearOfHuman(midX, midY) || !isClearOfHuman(endX, endY)) {
+            continue;
+          }
+        }
       }
 
-      // Fast O(1) spatial hash check
       const nearby = this.getNearbySegments(x, y, 1);
       if (nearby.length === 0) {
-        return { x, y };
+        return { x, y, angle: ang };
       }
 
       let crowded = false;
@@ -502,21 +541,42 @@ export class SimulationWorld {
       }
 
       if (!crowded) {
-        return { x, y };
+        return { x, y, angle: ang };
       }
 
-      if (minSnakeDist > bestScore) {
+      if (!humanPlayer && minSnakeDist > bestScore) {
         bestScore = minSnakeDist;
-        bestPoint = { x, y };
+        bestFallback = { x, y, angle: ang };
       }
     }
 
-    return bestPoint.x !== 0 || bestPoint.y !== 0
-      ? bestPoint
-      : {
-          x: (Math.random() * 2 - 1) * (bound * 0.6),
-          y: (Math.random() * 2 - 1) * (bound * 0.6),
-        };
+    if (humanPlayer && isBot) {
+      // Sweep 16 compass angles at safe off-screen radius to find a guaranteed player-clear spawn
+      for (let sIdx = 0; sIdx < 16; sIdx++) {
+        const a = (Math.PI * 2 * sIdx) / 16;
+        const dist = 2050;
+        let dx = Math.cos(a) * dist;
+        let dy = Math.sin(a) * dist;
+        if (Math.abs(humanPlayer.x + dx) > bound) dx = -dx;
+        if (Math.abs(humanPlayer.y + dy) > bound) dy = -dy;
+        const fx = Math.max(-bound, Math.min(bound, humanPlayer.x + dx));
+        const fy = Math.max(-bound, Math.min(bound, humanPlayer.y + dy));
+        const tang = normalizeAngle(Math.atan2(fy - humanPlayer.y, fx - humanPlayer.x) + 1.45);
+        const midX = fx - Math.cos(tang) * (bodyLengthPx * 0.5);
+        const midY = fy - Math.sin(tang) * (bodyLengthPx * 0.5);
+        const endX = fx - Math.cos(tang) * bodyLengthPx;
+        const endY = fy - Math.sin(tang) * bodyLengthPx;
+        if (
+          isClearOfHuman(fx, fy) &&
+          isClearOfHuman(midX, midY) &&
+          isClearOfHuman(endX, endY)
+        ) {
+          return { x: fx, y: fy, angle: tang };
+        }
+      }
+    }
+
+    return bestFallback;
   }
 
   private seedInitialOrbs(): void {
@@ -604,12 +664,12 @@ export class SimulationWorld {
   }): SnakeEntity {
     const id = params.id || this.nextId(params.isBot ? 's' : 'p');
     const spec = getSnakeSpec(params.snakeTypeId);
-    const pos = this.findSafePoint(420, params.isBot);
-    const angle = Math.random() * Math.PI * 2 - Math.PI;
     const score = Math.max(0, Math.floor(params.initialScore ?? 0));
     const radius = this.computeRadius(score);
     const segCount = this.computeSegmentCount(score);
     const spacing = radius * 0.72;
+    const pos = this.findSafePoint(420, params.isBot, segCount * spacing);
+    const angle = pos.angle;
 
     const segments: Point2D[] = [];
     for (let i = 0; i < segCount; i++) {
@@ -662,12 +722,21 @@ export class SimulationWorld {
     this.snakes.set(id, snake);
     if (!params.isBot) {
       this.humanPlayerId = id;
-      // Ensure initial physical bots sit cleanly inside the active bubble (980..2250px from player)
+      // Ensure initial physical bots sit cleanly off-screen inside the active bubble (1680..3100px from player)
       const toRelocate: string[] = [];
       for (const other of this.snakes.values()) {
         if (!other.isBot || !other.alive) continue;
-        const d = Math.hypot(other.x - snake.x, other.y - snake.y);
-        if (d < 920 || d > ACTIVE_BUBBLE_RADIUS) {
+        let tooClose = Math.hypot(other.x - snake.x, other.y - snake.y) < 1650;
+        if (!tooClose) {
+          for (let j = 0; j < other.segments.length; j += 4) {
+            if (Math.hypot(other.segments[j].x - snake.x, other.segments[j].y - snake.y) < 1350) {
+              tooClose = true;
+              break;
+            }
+          }
+        }
+        const tooFar = Math.hypot(other.x - snake.x, other.y - snake.y) > ACTIVE_BUBBLE_RADIUS;
+        if (tooClose || tooFar) {
           toRelocate.push(other.id);
         }
       }
@@ -842,85 +911,6 @@ export class SimulationWorld {
       }
     }
     return undefined;
-  }
-
-  private spawnBotNearPlayer(human: SnakeEntity, usedNames?: Set<string>): void {
-    const namePool = UNIFIED_BOT_NAMES;
-    let chosenName = namePool[Math.floor(Math.random() * namePool.length)].trim();
-    if (usedNames && usedNames.has(chosenName)) {
-      chosenName = `${chosenName}_${Math.floor(1 + Math.random() * 99)}`;
-    }
-    usedNames?.add(chosenName);
-
-    const r = Math.random();
-    const tier: BotSkillTier = r < 0.28 ? 'weak' : r < 0.72 ? 'normal' : 'strong';
-    const initScore = Math.floor(35 + Math.random() * 420);
-    const pool = tier === 'strong' ? SNAKE_TYPES.slice(25, 65) : SNAKE_TYPES.slice(0, 35);
-    const pickedSnake = pool[Math.floor(Math.random() * pool.length)] || SNAKE_TYPES[0];
-
-    // Safely off-screen perimeter around player: 1060px to 1450px (never abrupt pop-in!)
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 1060 + Math.random() * 390;
-    const bound = this.worldHalfSize - 400;
-    const px = Math.max(-bound, Math.min(bound, human.x + Math.cos(angle) * dist));
-    const py = Math.max(-bound, Math.min(bound, human.y + Math.sin(angle) * dist));
-
-    // Direction pointing towards the player's sector with slight organic variation
-    const toPlayerAngle = Math.atan2(human.y - py, human.x - px) + (Math.random() - 0.5) * 0.45;
-
-    const id = this.nextId('s');
-    const radius = this.computeRadius(initScore);
-    const segCount = this.computeSegmentCount(initScore);
-    const spacing = radius * 0.72;
-
-    const segments: Point2D[] = [];
-    for (let i = 0; i < segCount; i++) {
-      segments.push(
-        this.acquireSegment(
-          px - Math.cos(toPlayerAngle) * spacing * i,
-          py - Math.sin(toPlayerAngle) * spacing * i
-        )
-      );
-    }
-
-    const now = Date.now();
-    const snake: SnakeEntity = {
-      id,
-      name: chosenName.slice(0, 18),
-      snakeTypeId: pickedSnake.id,
-      isBot: true,
-      botTier: tier,
-      x: px,
-      y: py,
-      vx: 0,
-      vy: 0,
-      angle: toPlayerAngle,
-      targetAngle: toPlayerAngle,
-      speed: BASE_SPEED,
-      score: initScore,
-      peakScore: initScore,
-      totalCollected: initScore,
-      kills: 0,
-      radius,
-      alive: true,
-      spawnedAt: now,
-      isBoosting: false,
-      segments,
-      bestRank: 999,
-      abilityCooldownUntil: now + 4000,
-      abilityActiveUntil: 0,
-      activeEffect: null,
-      stealthUntil: 0,
-      shieldUntil: 0,
-      phaseUntil: 0,
-      slowedUntil: 0,
-      magnetUntil: 0,
-      wideViewUntil: 0,
-      doubleScoreUntil: 0,
-      freeBoostUntil: 0,
-      webbedUntil: 0,
-    };
-    this.snakes.set(id, snake);
   }
 
   public removeSnake(id: string): void {
