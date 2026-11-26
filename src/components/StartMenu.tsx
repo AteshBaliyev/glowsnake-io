@@ -183,10 +183,34 @@ export const StartMenu: React.FC<StartMenuProps> = ({
       setIsWatchingAd(false);
       if (res.rewardEarned) {
         soundEngine.playLevelUp();
-        const nextXp = (profile.totalXp || 0) + 150;
-        onUpdateProfile({ totalXp: nextXp });
-        setAdToast(t.adRewardSuccess);
-        setTimeout(() => setAdToast(null), 3000);
+        const targetSnake =
+          SNAKE_TYPES.find((s) => !isSnakeUnlocked(profile, s)) || null;
+        if (targetSnake) {
+          const curLvl = getLevelInfo(profile.totalXp).level;
+          const targetLevel = Math.max(curLvl, targetSnake.requiredLevel);
+          const nextXp = Math.max(profile.totalXp || 0, xpForLevel(targetLevel));
+          const existingUnlocked = profile.unlockedSnakeIds || ['neon-viper'];
+          const nextUnlocked = existingUnlocked.includes(targetSnake.id)
+            ? existingUnlocked
+            : [...existingUnlocked, targetSnake.id];
+          onUpdateProfile({
+            totalXp: nextXp,
+            unlockedSnakeIds: nextUnlocked,
+            selectedSnakeId: targetSnake.id,
+          });
+          setInspectedSnakeId(targetSnake.id);
+          setAdToast(
+            t.adRewardSuccess
+              .replace('{num}', String(targetSnake.index))
+              .replace('{name}', targetSnake.name)
+              .replace('{lvl}', String(targetLevel))
+          );
+        } else {
+          const nextXp = (profile.totalXp || 0) + 350;
+          onUpdateProfile({ totalXp: nextXp });
+          setAdToast('+350 XP!');
+        }
+        setTimeout(() => setAdToast(null), 3500);
       } else if (res.error) {
         if (res.error.startsWith('COOLDOWN:')) {
           const wait = res.error.split(':')[1] || '60';
@@ -242,6 +266,13 @@ export const StartMenu: React.FC<StartMenuProps> = ({
   const unlockedCount = SNAKE_TYPES.filter((s) =>
     isSnakeUnlocked(profile, s)
   ).length;
+  const nextLockedSnake =
+    SNAKE_TYPES.find((s) => !isSnakeUnlocked(profile, s)) || null;
+  const nextSnakeAdLabel = nextLockedSnake
+    ? t.getFreeCoins
+        .replace('{num}', String(nextLockedSnake.index))
+        .replace('{lvl}', String(nextLockedSnake.requiredLevel))
+    : '+350 XP';
 
   // Ensure selectedSnake is actually unlocked (fallback to Snake #1 if locked)
   useEffect(() => {
@@ -1345,7 +1376,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                       ? t.adLoading
                       : adCooldown > 0
                       ? `⏳ ${t.adCooldownWait.replace('{sec}', String(adCooldown))}`
-                      : t.getFreeCoins}
+                      : nextSnakeAdLabel}
                   </span>
                 </button>
 
@@ -1612,7 +1643,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                           ? t.adLoading
                           : adCooldown > 0
                           ? `⏳ ${t.adCooldownWait.replace('{sec}', String(adCooldown))}`
-                          : t.getFreeCoins}
+                          : nextSnakeAdLabel}
                       </span>
                     </button>
                   </div>

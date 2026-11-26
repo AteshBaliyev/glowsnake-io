@@ -107,13 +107,19 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   const MAX_JOY_R = 46 * Math.max(0.75, joyScale);
 
   const beginJoyAt = (clientX: number, clientY: number) => {
-    // If finger lands near resting joystick center, anchor smoothly; anywhere else on that half creates a floating base under thumb!
-    let origin = { x: clientX, y: clientY };
+    // Anchor once at resting center if touched nearby, or lock a stationary floating base near thumb (safe screen margin).
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 450;
+    const edgePad = Math.min(52, MAX_JOY_R * 1.05);
+    let origin = {
+      x: Math.max(edgePad, Math.min(vw - edgePad, clientX)),
+      y: Math.max(edgePad, Math.min(vh - edgePad, clientY)),
+    };
     if (joyRef.current && !floatingOriginRef.current) {
       const rect = joyRef.current.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
-      if (Math.hypot(clientX - cx, clientY - cy) <= rect.width * 0.52) {
+      if (Math.hypot(clientX - cx, clientY - cy) <= Math.max(72, rect.width * 0.65)) {
         origin = { x: cx, y: cy };
       }
     }
@@ -134,28 +140,14 @@ export const GameHUD: React.FC<GameHUDProps> = ({
     const d = Math.hypot(dx, dy);
     const angle = Math.atan2(dy, dx);
 
-    // Dynamic leash: if finger drags beyond max radius, base gently follows so 180-degree turns are instant!
-    if (d > MAX_JOY_R) {
-      const leashR = MAX_JOY_R * 0.92;
-      origin = {
-        x: clientX - Math.cos(angle) * leashR,
-        y: clientY - Math.sin(angle) * leashR,
-      };
-      floatingOriginRef.current = origin;
-      setFloatingJoyOrigin(origin);
-      setJoyKnob({
-        x: Math.cos(angle) * (leashR / Math.max(0.5, joyScale)),
-        y: Math.sin(angle) * (leashR / Math.max(0.5, joyScale)),
-      });
-    } else {
-      const clampedD = d / Math.max(0.5, joyScale);
-      setJoyKnob({
-        x: Math.cos(angle) * clampedD,
-        y: Math.sin(angle) * clampedD,
-      });
-    }
+    // Keep joystick base locked in place during full/tight turns; clamp only the visual knob inside MAX_JOY_R.
+    const clampedR = Math.min(MAX_JOY_R, d) / Math.max(0.5, joyScale);
+    setJoyKnob({
+      x: Math.cos(angle) * clampedR,
+      y: Math.sin(angle) * clampedR,
+    });
 
-    if (d > 5) {
+    if (d > 4) {
       onTouchSteer(angle);
     }
   };

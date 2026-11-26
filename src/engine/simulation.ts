@@ -2062,6 +2062,9 @@ export class SimulationWorld {
     const effectiveTurnStat = s.isBot ? Math.min(13, spec.turnStat) : spec.turnStat;
     let turnRate = (3.4 + effectiveTurnStat * 0.16) * sizePenalty;
     if (s.isBot && s.botTier === 'weak') turnRate *= 0.78;
+    if (!s.isBot) {
+      turnRate *= 1.24;
+    }
     if (s.isBot && s.isBoosting) turnRate *= 0.84;
     if (
       s.activeEffect === 'time_shift' ||
